@@ -1,0 +1,43 @@
+# Secrets & Credentials
+.env
+*.env
+*.env.*
+!.env.example
+!frontend/.env.example
+credentials.json
+token.json
+service-account*.json
+*.pem
+*.key
+
+# Node dependencies
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Python caches & environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# Firebase Cache & Hosting
+.firebase/
+.firebaserc
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS Files
+.DS_Store
+Thumbs.db
