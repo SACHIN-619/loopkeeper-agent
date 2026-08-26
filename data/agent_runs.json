@@ -1,0 +1,151 @@
+{
+  "runs": [
+    {
+      "run_id": "run_003",
+      "trigger": "scheduler",
+      "started_at": "2026-08-25T08:00:03Z",
+      "completed_at": "2026-08-25T08:00:08Z",
+      "duration_ms": 4821,
+      "status": "completed",
+      "error": null,
+      "loops_scanned": 6,
+      "broken_promises": 1,
+      "plans_changed": 1,
+      "emails_sent": 1,
+      "approvals_created": 2,
+      "resolved": 0,
+      "failures": 0,
+      "broken_promise_loops": ["inv_1002"],
+      "decisions": [
+        {
+          "loop_id": "inv_1006",
+          "tool": "escalate_to_human",
+          "observed": "INV-1006 Torrey & Vance — full dispute, $18,500",
+          "reasoning_summary": "Full dispute over $10,000 threshold. Policy requires human judgment. Agent will not draft.",
+          "authority": "tier_3",
+          "action": "escalated",
+          "result": "escalation_created"
+        },
+        {
+          "loop_id": "inv_1005",
+          "tool": "send_followup",
+          "observed": "INV-1005 Ambit Robotics — $7,300 fresh overdue, 7 days",
+          "reasoning_summary": "$7,300 exceeds $5,000 threshold. Tier 2. Draft held for approval.",
+          "authority": "tier_2",
+          "action": "draft_created",
+          "result": "awaiting_approval"
+        },
+        {
+          "loop_id": "inv_1002",
+          "tool": "check_promise_status",
+          "observed": "INV-1002 Halden & Rue — promise deadline Aug 21 passed, no payment",
+          "reasoning_summary": "Promise date 2026-08-21 passed. No payment evidence in history. Promise broken. Tier escalates to 2.",
+          "authority": "tier_2",
+          "action": "promise_broken_detected",
+          "result": "plan_changed"
+        },
+        {
+          "loop_id": "inv_1004",
+          "tool": "send_followup",
+          "observed": "INV-1004 Norr Studio — partial dispute $600, undisputed $2,000",
+          "reasoning_summary": "Partial dispute present. Tier 2. Draft prepared for disputed portion acknowledgment.",
+          "authority": "tier_2",
+          "action": "draft_created",
+          "result": "awaiting_approval"
+        },
+        {
+          "loop_id": "inv_1003",
+          "tool": "send_followup",
+          "observed": "INV-1003 Kestrel Home Goods — $950, gone silent, 3 unanswered attempts",
+          "reasoning_summary": "3 unanswered contacts triggers Tier 2. Draft held. Tone was not escalated without approval.",
+          "authority": "tier_2",
+          "action": "would_draft_but_capped",
+          "result": "awaiting_approval"
+        },
+        {
+          "loop_id": "inv_1001",
+          "tool": "verify_and_close",
+          "observed": "INV-1001 Bright Path — reply contains 'Paid!'",
+          "reasoning_summary": "Payment keyword confirmed in incoming reply. Evidence verified. Loop closed.",
+          "authority": "tier_1",
+          "action": "loop_closed",
+          "result": "resolved"
+        }
+      ],
+      "sources": {
+        "gmail": false,
+        "firestore": false,
+        "policy": true
+      }
+    },
+    {
+      "run_id": "run_002",
+      "trigger": "scheduler",
+      "started_at": "2026-08-24T12:00:01Z",
+      "completed_at": "2026-08-24T12:00:06Z",
+      "duration_ms": 5102,
+      "status": "completed",
+      "error": null,
+      "loops_scanned": 6,
+      "broken_promises": 0,
+      "plans_changed": 1,
+      "emails_sent": 1,
+      "approvals_created": 1,
+      "resolved": 0,
+      "failures": 0,
+      "broken_promise_loops": [],
+      "decisions": [
+        {
+          "loop_id": "inv_1005",
+          "tool": "check_for_new_replies",
+          "observed": "INV-1005 Ambit Robotics — no new Gmail replies",
+          "reasoning_summary": "Gmail not connected. No external replies to process.",
+          "authority": "tier_1",
+          "action": "gmail_skipped",
+          "result": "no_action"
+        },
+        {
+          "loop_id": "inv_1002",
+          "tool": "detect_and_store_promise",
+          "observed": "INV-1002 Halden & Rue — history contains 'will pay by Friday Aug 21'",
+          "reasoning_summary": "Reply from 2026-08-05 indicates promise. Extracted date: 2026-08-21. Promise recorded. Will monitor.",
+          "authority": "tier_1",
+          "action": "promise_stored",
+          "result": "plan_changed"
+        }
+      ],
+      "sources": {
+        "gmail": false,
+        "firestore": false,
+        "policy": true
+      }
+    },
+    {
+      "run_id": "run_001",
+      "trigger": "manual",
+      "started_at": "2026-08-24T08:00:00Z",
+      "completed_at": "2026-08-24T08:00:05Z",
+      "duration_ms": 4633,
+      "status": "completed",
+      "error": null,
+      "loops_scanned": 6,
+      "broken_promises": 0,
+      "plans_changed": 0,
+      "emails_sent": 2,
+      "approvals_created": 0,
+      "resolved": 0,
+      "failures": 0,
+      "broken_promise_loops": [],
+      "decisions": [
+        {
+          "summary": "First run. 6 loops scanned. INV-1001 (Bright Path, $4,200) and INV-1003 (Kestrel, $950) sent Tier-1 follow-ups. INV-1005 (Ambit, $7,300) held — exceeds threshold. INV-1006 (Torrey, $18,500) escalated — full dispute. 2 loops watching promises."
+        }
+      ],
+      "sources": {
+        "gmail": false,
+        "firestore": false,
+        "policy": true
+      }
+    }
+  ]
+}
