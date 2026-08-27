@@ -316,6 +316,8 @@ export default function Login() {
 function friendlyError(e, mode = "signin") {
   const code = e?.code || "";
   // user-not-found: distinguish sign-in (suggest sign up) vs sign-up
+  if (code.includes("api-key-not-valid") || code.includes("invalid-api-key") || e?.message?.includes("api-key-not-valid"))
+    return "Firebase API Key is invalid or not enabled for Authentication in Firebase Console. Please check VITE_FIREBASE_API_KEY in frontend/.env or click 'Try Demo' above to test offline.";
   if (code.includes("user-not-found"))
     return mode === "signin"
       ? "No account found with this email. Switch to Sign up above to create one."

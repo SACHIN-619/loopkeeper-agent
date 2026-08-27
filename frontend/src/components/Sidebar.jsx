@@ -30,7 +30,7 @@ export default function Sidebar({ loops = [], isSandbox = false }) {
   const [isHovered, setIsHovered] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isDemoMode } = useAuth();
+  const { user, isDemoMode, exitDemoMode } = useAuth();
 
   // Sidebar is open if either user has not collapsed it OR is hovering while minimized
   const isExpanded = !collapsed || isHovered;
@@ -85,29 +85,80 @@ export default function Sidebar({ loops = [], isSandbox = false }) {
         </AnimatePresence>
       </div>
 
-      {/* Agent status pill */}
+      {/* Agent status & Demo mode pill */}
       <AnimatePresence>
         {isExpanded && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            title={agentActive ? "Agent is actively monitoring open loops" : "Agent is idle — all loops monitored"}
-            style={{
-              margin: "12px 12px 4px", padding: "8px 12px", borderRadius: 8,
-              background: agentActive ? "rgba(0,212,170,0.06)" : "rgba(90,100,121,0.08)",
-              border: `1px solid ${agentActive ? "rgba(0,212,170,0.2)" : "var(--c-border)"}`,
-              display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-            }}
-            onClick={() => navigate("/app/activity")}
-          >
-            <span style={{
-              width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
-              background: agentActive ? "var(--c-teal)" : "var(--c-text-3)",
-              animation: agentActive ? "pulse 2s infinite" : "none",
-            }} />
-            <span style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: "0.08em", fontWeight: 600, color: agentActive ? "var(--c-teal)" : "var(--c-text-3)" }}>
-              {agentActive ? "AGENT ACTIVE" : "AGENT IDLE"}
-            </span>
-          </motion.div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, margin: "10px 12px 4px" }}>
+            {/* Blinking DEMO MODE Deactivation Button */}
+            {isDemoMode ? (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={exitDemoMode}
+                title="Click to Exit Sandbox Demo Mode and return to your Live Account"
+                style={{
+                  padding: "8px 12px", borderRadius: 8,
+                  background: "rgba(245,158,11,0.12)",
+                  border: "1px solid rgba(245,158,11,0.4)",
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                  cursor: "pointer", boxShadow: "0 0 16px rgba(245,158,11,0.25)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{
+                    width: 8, height: 8, borderRadius: "50%",
+                    background: "#F59E0B",
+                    animation: "pulse 1s infinite alternate",
+                    boxShadow: "0 0 8px #F59E0B",
+                  }} />
+                  <span style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: "0.08em", fontWeight: 700, color: "#F59E0B" }}>
+                    DEMO MODE ACTIVE
+                  </span>
+                </div>
+                <span style={{ fontFamily: f.mono, fontSize: 9, color: "var(--c-text)", background: "rgba(255,255,255,0.1)", borderRadius: 4, padding: "1px 5px" }}>
+                  EXIT ✕
+                </span>
+              </motion.button>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                title={agentActive ? "Agent is actively monitoring open loops" : "Agent is idle — all loops monitored"}
+                style={{
+                  padding: "8px 12px", borderRadius: 8,
+                  background: agentActive ? "rgba(0,212,170,0.06)" : "rgba(90,100,121,0.08)",
+                  border: `1px solid ${agentActive ? "rgba(0,212,170,0.2)" : "var(--c-border)"}`,
+                  display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+                }}
+                onClick={() => navigate("/app/activity")}
+              >
+                <span style={{
+                  width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+                  background: agentActive ? "var(--c-teal)" : "var(--c-text-3)",
+                  animation: agentActive ? "pulse 2s infinite" : "none",
+                }} />
+                <span style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: "0.08em", fontWeight: 600, color: agentActive ? "var(--c-teal)" : "var(--c-text-3)" }}>
+                  {agentActive ? "AGENT ACTIVE" : "AGENT IDLE"}
+                </span>
+              </motion.div>
+            )}
+
+            {/* "Start Real Journey" CTA for Demo Users */}
+            {isDemoMode && (
+              <button
+                onClick={() => navigate("/login")}
+                style={{
+                  padding: "7px 12px", borderRadius: 7,
+                  background: "var(--c-teal)", color: "var(--c-text-inv)",
+                  border: "none", cursor: "pointer",
+                  fontFamily: f.body, fontSize: 11, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  boxShadow: "0 0 14px rgba(0,212,170,0.25)",
+                }}
+              >
+                🚀 Start Your Real Journey
+              </button>
+            )}
+          </div>
         )}
       </AnimatePresence>
 

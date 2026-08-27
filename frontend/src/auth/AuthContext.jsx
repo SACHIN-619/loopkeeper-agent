@@ -82,6 +82,21 @@ export function AuthProvider({ children }) {
     setIsDemoMode(true);
   };
 
+  const exitDemoMode = () => {
+    sessionStorage.removeItem("lk_demo_mode");
+    setIsDemoMode(false);
+    const localUserRaw = sessionStorage.getItem("lk_local_user");
+    if (localUserRaw) {
+      try {
+        setUser(JSON.parse(localUserRaw));
+      } catch {
+        setUser(null);
+      }
+    } else {
+      setUser(null);
+    }
+  };
+
   const logout = async () => {
     sessionStorage.removeItem("lk_demo_mode");
     sessionStorage.removeItem("lk_local_user");
@@ -95,7 +110,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, loading, isDemoMode, isFirebaseConfigured,
-      loginAsLocalUser, enterDemoMode, logout
+      loginAsLocalUser, enterDemoMode, exitDemoMode, logout
     }}>
       {children}
     </AuthContext.Provider>
