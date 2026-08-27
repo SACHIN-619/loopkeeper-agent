@@ -34,12 +34,13 @@ def _get_runner():
     return InMemoryRunner(agent=root_agent)
 
 
-def run_agent_cycle(trigger: str = "manual") -> dict:
+def run_agent_cycle(trigger: str = "manual", user_id: str | None = None) -> dict:
     """
     Execute one full agent cycle: observe → reason → decide → act → record.
 
     trigger: one of 'scheduler' | 'manual' | 'gmail_event' | 'demo'
              stored in the run log so every execution is traceable.
+    user_id: optional tenant/owner UID for isolated execution context.
 
     Returns a structured RunResult dict that runner.py can return as JSON
     and store.save_run_log() can persist.

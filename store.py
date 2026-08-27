@@ -94,16 +94,19 @@ def explain_priority(loop: dict) -> str:
     )
 
 
-def list_loops(include_closed: bool = False, sort_by_priority: bool = False) -> list[dict]:
+def list_loops(include_closed: bool = False, sort_by_priority: bool = False, user_id: Optional[str] = None) -> list[dict]:
     """Return loops, optionally including closed, optionally ranked by
-    priority_score() (highest financial impact / urgency first)."""
+    priority_score() (highest financial impact / urgency first).
+    If user_id is provided, filters for matching tenant/owner UID."""
     data = _load()
-    loops = list(data["loops"].values())
+    loops = list(data.get("loops", {}).values())
+    if user_id:
+        loops = [l for l in loops if l.get("user_id") == user_id or l.get("userId") == user_id]
     for l in loops:
         l.setdefault("processed_message_ids", [])
         l.setdefault("unread_reply", False)
     if not include_closed:
-        loops = [l for l in loops if l["status"] != "closed"]
+        loops = [l for l in loops if l.get("status") != "closed"]
     if sort_by_priority:
         loops.sort(key=priority_score, reverse=True)
     return loops

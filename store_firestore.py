@@ -82,8 +82,10 @@ def explain_priority(loop: dict) -> str:
     )
 
 
-# --- loops ---------------------------------------------------------def list_loops(include_closed: bool = False, sort_by_priority: bool = False) -> list[dict]:
+def list_loops(include_closed: bool = False, sort_by_priority: bool = False, user_id: Optional[str] = None) -> list[dict]:
     col = _client().collection(LOOPS)
+    if user_id:
+        col = col.where(filter=FieldFilter("user_id", "==", user_id))
     if not include_closed:
         # "!=" needs the modern filter=FieldFilter(...) form
         col = col.where(filter=FieldFilter("status", "!=", "closed"))
