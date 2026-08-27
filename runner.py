@@ -34,7 +34,8 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     return response
 
-@app.options("/<path:path>")
+@app.route("/", defaults={"path": ""}, methods=["OPTIONS"])
+@app.route("/<path:path>", methods=["OPTIONS"])
 def options_handler(path):
     return "", 200
 
@@ -55,14 +56,15 @@ def index():
 @app.post("/agent/run")
 def agent_run():
     """Trigger a full agent cycle. Returns the run log record as JSON."""
-    trigger = request.json.get("trigger", "scheduler") if request.is_json else "scheduler"
+    req_data = request.json if request.is_json else {}
+    trigger  = req_data.get("trigger", "scheduler")
+    user_id  = req_data.get("user_id") or req_data.get("userId")
     if trigger not in ("scheduler", "manual", "gmail_event", "demo"):
         trigger = "manual"
 
     from loop_keeper.agent_runner import run_agent_cycle
-    result = run_agent_cycle(trigger=trigger)
-    status_code = 200 if result["status"] == "completed" else 500
-    return jsonify(result), status_code
+    result = run_agent_cycle(trigger=trigger, user_id=user_id)
+    return jsonify(result), 200
 
 
 # ---------------------------------------------------------------------------
