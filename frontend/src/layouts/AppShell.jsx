@@ -48,12 +48,23 @@ export default function AppShell() {
     return () => window.removeEventListener("lk:add-loop", handler);
   }, []);
 
-  // Data source: sandbox in demo mode, Firestore in live mode
+  // Data source: sandbox in demo mode, real user data in live mode
   useEffect(() => {
-    if (isDemoMode || !db) {
+    if (isDemoMode) {
       setLoops(LOOPS);
       setResolvedLoops(RESOLVED_LOOPS);
       setIsFallback(true);
+      setLoading(false);
+      return;
+    }
+
+    // Real Authenticated User Mode — Do NOT pollute with mock data
+    setIsFallback(false);
+
+    if (!db) {
+      // Real user with no Firestore connection starts with clean state (or locally added items)
+      setLoops((prev) => prev.filter(l => !LOOPS.some(m => m.loop_id === l.loop_id)));
+      setResolvedLoops([]);
       setLoading(false);
       return;
     }
@@ -69,14 +80,10 @@ export default function AppShell() {
             .sort((a, b) => (b.priority_score ?? 0) - (a.priority_score ?? 0));
           setLoops(open);
           setLoading(false);
-          setIsFallback(false);
           setFirestoreError(null);
         },
         (err) => {
-          console.warn("Firestore unavailable — sandbox fallback.", err);
-          setLoops(LOOPS);
-          setResolvedLoops(RESOLVED_LOOPS);
-          setIsFallback(true);
+          console.warn("Firestore listener warning:", err);
           setLoading(false);
           setFirestoreError(err.message);
         }
@@ -87,10 +94,8 @@ export default function AppShell() {
         (snap) => setResolvedLoops(snap.docs.map((d) => ({ loop_id: d.id, ...d.data() }))),
         () => {}
       );
-    } catch {
-      setLoops(LOOPS);
-      setResolvedLoops(RESOLVED_LOOPS);
-      setIsFallback(true);
+    } catch (err) {
+      console.warn("Firestore error:", err);
       setLoading(false);
     }
 
@@ -147,9 +152,11 @@ export default function AppShell() {
     setIsFallback(true);
   };
 
+  const activeClients = isDemoMode ? CLIENTS : {};
+
   return (
     <AppContext.Provider value={{
-      loops, resolvedLoops, clients: CLIENTS,
+      loops, resolvedLoops, clients: activeClients,
       isFallback, loading, firestoreError, localApprovals,
       onVerifyAndClose: handleVerifyAndClose,
       onActionCompleted: handleActionCompleted,

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Mail, MessageSquare, AlertTriangle, ShieldCheck, Split, Bot, Circle, ChevronDown, ChevronUp, Clock, UserCheck, CheckCircle, HelpCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useApp } from "../contexts/AppContext.js";
+import { useAuth } from "../auth/AuthContext.jsx";
 import { CLIENTS, AGENT_RUNS } from "../data/mockData.js";
 import { f } from "../theme/tokens.js";
 

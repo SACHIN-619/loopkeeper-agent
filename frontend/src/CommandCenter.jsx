@@ -19,8 +19,8 @@ export default function CommandCenter() {
   const { loops: liveLoops, loading: loadingLive, error: liveError } = useLiveLoops();
   const { resolvedLoops: liveResolved } = useLiveResolvedLoops();
 
-  // Automatic fallback to mock data if Firestore is unreachable or loading fails
-  const isFallback = !liveLoops || liveLoops.length === 0 || !!liveError;
+  // Fallback to mock demo data ONLY if Firestore is completely unconfigured or errored, NOT when open loops array is empty (0 open loops is a valid live state)
+  const isFallback = (liveLoops === null || liveLoops === undefined) || !!liveError;
   
   const activeLoops = useMemo(() => {
     if (!isFallback) return liveLoops || [];

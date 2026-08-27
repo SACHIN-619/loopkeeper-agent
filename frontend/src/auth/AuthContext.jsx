@@ -1,15 +1,18 @@
 /**
  * AuthContext.jsx — Global auth state provider.
- * Handles: Firebase auth, demo mode, redirect result on mount.
+ * Handles: Firebase auth, local dev auth, explicit sandbox demo mode.
  */
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { onAuthChange, checkRedirectResult, isFirebaseConfigured } from "./firebaseAuth.js";
+import { onAuthChange, checkRedirectResult, isFirebaseConfigured, signOut as firebaseSignOut } from "./firebaseAuth.js";
 
 export const AuthContext = createContext({
   user: null,
   loading: true,
   isDemoMode: false,
   isFirebaseConfigured: false,
+  loginAsLocalUser: () => {},
+  enterDemoMode: () => {},
+  logout: () => {},
 });
 
 export function useAuth() {
@@ -17,42 +20,83 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [user, setUser]               = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [isDemoMode, setIsDemoMode]   = useState(false);
 
   useEffect(() => {
-    // Demo mode: set by "Try Demo" button in Login.jsx
+    // 1. Explicit Sandbox Demo Mode check
     const demo = sessionStorage.getItem("lk_demo_mode") === "true";
     if (demo) {
       setIsDemoMode(true);
+      setUser({ uid: "sandbox_demo_user", email: "demo@loopkeeper.ai", displayName: "Demo Account" });
       setLoading(false);
       return;
     }
 
-    // Firebase not configured → auto-sandbox
-    if (!isFirebaseConfigured) {
-      setIsDemoMode(true);
-      setLoading(false);
-      return;
+    // 2. Local Developer Auth check
+    const localUserRaw = sessionStorage.getItem("lk_local_user");
+    if (localUserRaw) {
+      try {
+        const parsed = JSON.parse(localUserRaw);
+        setUser(parsed);
+        setIsDemoMode(false);
+        setLoading(false);
+        return;
+      } catch {}
     }
 
-    // Check if we just returned from a Google redirect sign-in
-    checkRedirectResult().then((redirectUser) => {
-      if (redirectUser) setUser(redirectUser);
-    });
+    // 3. Firebase Auth check if configured
+    if (isFirebaseConfigured) {
+      checkRedirectResult().then((redirectUser) => {
+        if (redirectUser) setUser(redirectUser);
+      });
 
-    // Subscribe to ongoing auth state
-    const unsubscribe = onAuthChange((firebaseUser) => {
-      setUser(firebaseUser);
-      setLoading(false);
-    });
+      const unsubscribe = onAuthChange((firebaseUser) => {
+        if (firebaseUser) {
+          setUser(firebaseUser);
+          setIsDemoMode(false);
+        }
+        setLoading(false);
+      });
 
-    return unsubscribe;
+      return unsubscribe;
+    }
+
+    // Fallback: unconfigured Firebase defaults to unauthenticated (clean state)
+    setLoading(false);
   }, []);
 
+  const loginAsLocalUser = (email = "user@loopkeeper.ai", name = "Authenticated User") => {
+    const localUser = { uid: `user_${Date.now()}`, email, displayName: name };
+    sessionStorage.setItem("lk_local_user", JSON.stringify(localUser));
+    sessionStorage.removeItem("lk_demo_mode");
+    setUser(localUser);
+    setIsDemoMode(false);
+  };
+
+  const enterDemoMode = () => {
+    sessionStorage.setItem("lk_demo_mode", "true");
+    sessionStorage.removeItem("lk_local_user");
+    setUser({ uid: "sandbox_demo_user", email: "demo@loopkeeper.ai", displayName: "Demo Account" });
+    setIsDemoMode(true);
+  };
+
+  const logout = async () => {
+    sessionStorage.removeItem("lk_demo_mode");
+    sessionStorage.removeItem("lk_local_user");
+    setUser(null);
+    setIsDemoMode(false);
+    if (isFirebaseConfigured) {
+      try { await firebaseSignOut(); } catch {}
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, isDemoMode, isFirebaseConfigured }}>
+    <AuthContext.Provider value={{
+      user, loading, isDemoMode, isFirebaseConfigured,
+      loginAsLocalUser, enterDemoMode, logout
+    }}>
       {children}
     </AuthContext.Provider>
   );

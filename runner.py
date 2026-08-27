@@ -26,10 +26,31 @@ from flask import Flask, jsonify, request, abort
 
 app = Flask(__name__)
 
+# Add CORS headers so frontend dev server (http://localhost:5173) can reach Flask runner without CORS errors
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    return response
+
+@app.options("/<path:path>")
+def options_handler(path):
+    return "", 200
 
 # ---------------------------------------------------------------------------
-# POST /agent/run
+# Root info route
 # ---------------------------------------------------------------------------
+
+@app.get("/")
+def index():
+    """Friendly root endpoint for development & service checks."""
+    return jsonify({
+        "service": "LoopKeeper Automation Service",
+        "status": "running",
+        "health_endpoint": "/health",
+        "endpoints": ["/agent/run", "/agent/status", "/agent/runs", "/agent/inject-evidence", "/health"]
+    }), 200
 
 @app.post("/agent/run")
 def agent_run():

@@ -94,9 +94,13 @@ export function onAuthChange(callback) {
   return onAuthStateChanged(auth, callback);
 }
 
-/** True only when all required Firebase config env vars are set. */
+const rawKey = import.meta.env.VITE_FIREBASE_API_KEY || "";
+export const isPlaceholderKey = !rawKey || rawKey.includes("your_") || rawKey.length < 20;
+
+/** True only when valid, non-placeholder Firebase config env vars are set. */
 export const isFirebaseConfigured = !!(
-  import.meta.env.VITE_FIREBASE_API_KEY &&
+  rawKey &&
+  !isPlaceholderKey &&
   import.meta.env.VITE_FIREBASE_PROJECT_ID &&
-  import.meta.env.VITE_FIREBASE_AUTH_DOMAIN
+  !import.meta.env.VITE_FIREBASE_PROJECT_ID.includes("your_")
 );
