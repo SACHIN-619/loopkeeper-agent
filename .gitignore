@@ -15,6 +15,7 @@ node_modules/
 dist/
 dist-ssr/
 *.local
+*.timestamp-*.mjs
 
 # Python caches & environments
 __pycache__/
