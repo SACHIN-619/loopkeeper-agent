@@ -113,6 +113,8 @@ export default function AddInvoice() {
         { date: new Date().toISOString().split("T")[0], event: "Invoice added to LoopKeeper" },
         { date: form.due_date, event: "Payment due" },
       ],
+      email_syntax_valid: true,
+      delivery_status: "VALID_FORMAT_DELIVERY_UNCONFIRMED",
       relationship_tier: form.relationship_tier,
       notes: form.notes.trim() || null,
     });

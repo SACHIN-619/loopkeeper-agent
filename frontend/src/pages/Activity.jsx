@@ -271,11 +271,21 @@ export default function Activity() {
       });
     });
 
+    const stringifyDate = (d) => {
+      if (!d) return "";
+      if (typeof d === "string") return d;
+      if (typeof d?.toDate === "function") return d.toDate().toISOString();
+      if (d?.seconds) return new Date(d.seconds * 1000).toISOString();
+      return String(d);
+    };
+
     return all.sort((a, b) => {
-      if (!a.date && !b.date) return 0;
-      if (!a.date) return 1;
-      if (!b.date) return -1;
-      return b.date.localeCompare(a.date);
+      const dA = stringifyDate(a.date);
+      const dB = stringifyDate(b.date);
+      if (!dA && !dB) return 0;
+      if (!dA) return 1;
+      if (!dB) return -1;
+      return dB.localeCompare(dA);
     });
   }, [loops, resolvedLoops]);
 
@@ -389,13 +399,24 @@ export default function Activity() {
       ) : (
         /* Agent Runs Tab */
         <div>
-          {sandbox && (
+          {isDemoMode ? (
             <div style={{
-              background: "rgba(109, 40, 217, 0.05)", border: "1px dashed rgba(109, 40, 217, 0.25)",
-              padding: "10px 14px", borderRadius: 8, marginBottom: 16,
-              fontFamily: f.body, fontSize: 12, color: "rgba(109, 40, 217, 0.8)", lineHeight: 1.5,
+              background: "rgba(0, 212, 170, 0.08)", border: "1px solid rgba(0, 212, 170, 0.25)",
+              padding: "12px 16px", borderRadius: 10, marginBottom: 18,
+              fontFamily: f.body, fontSize: 13, color: "var(--c-teal)", lineHeight: 1.5,
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
             }}>
-              Showing simulation logs. Start the agent backend runner (<code>python -m loop_keeper.runner</code>) to view live execution logs.
+              <div>
+                <strong>Demo Simulation Mode:</strong> Viewing sample agent execution scenarios. Switch to your live account to stream real background execution logs.
+              </div>
+            </div>
+          ) : sandbox && (
+            <div style={{
+              background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.25)",
+              padding: "12px 16px", borderRadius: 10, marginBottom: 18,
+              fontFamily: f.body, fontSize: 13, color: "var(--c-tier2)", lineHeight: 1.5,
+            }}>
+              <strong>Live Execution Stream:</strong> Background execution logs will stream here automatically whenever your agent scans invoices or processes client email replies.
             </div>
           )}
           {runLog.length === 0 ? (

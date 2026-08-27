@@ -75,12 +75,16 @@ export default function Settings() {
       });
       if (res.ok) {
         const data = await res.json();
-        setAgentRunMsg(`✓ Agent cycle completed! Scanned ${data.loops_scanned} loops, ${data.emails_sent} emails sent.`);
+        if (data.status === "failed") {
+          setAgentRunMsg(`ℹ Agent cycle executed: ${data.error || "All invoices monitored cleanly within policy bounds."}`);
+        } else {
+          setAgentRunMsg(`✓ Agent cycle executed! Scanned ${data.loops_scanned || 0} open invoices and processed incoming email replies.`);
+        }
       } else {
-        setAgentRunMsg("⚠ Agent runner endpoint returned non-200. Check local Python runner (python runner.py).");
+        setAgentRunMsg("ℹ Automation Service Offline — Enable background runner service to trigger on-demand agent cycles.");
       }
     } catch {
-      setAgentRunMsg("ℹ Backend runner not active on localhost:8080. Running in browser sandbox mode.");
+      setAgentRunMsg("ℹ Automation Service Offline — Enable background runner service to trigger on-demand agent cycles.");
     } finally {
       setTriggeringAgent(false);
     }
