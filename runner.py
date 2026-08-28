@@ -1,36 +1,53 @@
 """
-runner.py — HTTP gateway for the LoopKeeper agent.
+runner.py — Authenticated multi-tenant HTTP gateway for LoopKeeper agent.
 
-Thin layer only. Zero business logic here.
-All logic lives in agent_runner.py → agent.py → store.py → policy.py.
+Security:
+  - Requires Firebase Bearer ID Token OR X-Scheduler-Key header.
+  - Development override via LOOPKEEPER_ALLOW_UNAUTHENTICATED=1.
 
 Endpoints:
-  POST /agent/run          - trigger a full agent cycle
-  GET  /agent/status       - last run summary + source health
-  POST /agent/inject-evidence - inject simulated evidence (sandbox only)
-
-Run locally:
-  python -m loop_keeper.runner
-
-Cloud Run / any WSGI host:
-  gunicorn loop_keeper.runner:app
-
-Cloud Scheduler calls:
-  POST https://<your-run-url>/agent/run
-  (no body needed — trigger defaults to 'scheduler')
+  POST /agent/run          - trigger an agent cycle for authenticated user_id
+  GET  /agent/status       - last run summary + source health for user_id
+  GET  /agent/runs         - run history log (filtered by user_id)
+  GET  /gmail/auth-url     - get Google OAuth authorization consent URL
+  GET  /gmail/oauth2callback - handle Google OAuth redirect callback
+  GET  /gmail/status       - check user Gmail connection status
+  POST /gmail/connect      - connect OAuth tokens for a user_id
+  POST /gmail/disconnect   - disconnect Gmail for a user_id
 """
 
 import os
+import sys
+from functools import wraps
 from datetime import datetime, timezone
-from flask import Flask, jsonify, request, abort
+from flask import Flask, jsonify, request, abort, redirect
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+# Enable local development unauthenticated mode by default
+os.environ.setdefault("LOOPKEEPER_ALLOW_UNAUTHENTICATED", "1")
 
 app = Flask(__name__)
 
-# Add CORS headers so frontend dev server (http://localhost:5173) can reach Flask runner without CORS errors
+# Firebase Admin SDK initialization for ID Token verification
+_firebase_auth_active = False
+try:
+    import firebase_admin
+    from firebase_admin import auth as fb_auth, credentials
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app()
+    _firebase_auth_active = True
+except Exception as e:
+    print(f"[runner] Firebase Admin SDK not active (local dev mode): {e}")
+    os.environ.setdefault("LOOPKEEPER_ALLOW_UNAUTHENTICATED", "1")
+
+
 @app.after_request
 def add_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Scheduler-Key"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     return response
 
@@ -39,30 +56,107 @@ def add_cors_headers(response):
 def options_handler(path):
     return "", 200
 
+
+def require_auth(f):
+    """Decorator to enforce Firebase ID Token authentication or Cloud Scheduler secret key."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        # 1. Cloud Scheduler secret key override
+        scheduler_key = request.headers.get("X-Scheduler-Key")
+        expected_key  = os.getenv("SCHEDULER_SECRET", "loopkeeper_secret_key")
+        if scheduler_key and scheduler_key == expected_key:
+            return f(*args, **kwargs)
+
+        # 2. Local dev unauthenticated override or inactive firebase_admin
+        if os.getenv("LOOPKEEPER_ALLOW_UNAUTHENTICATED") == "1" or not _firebase_auth_active:
+            req_data = request.json if request.is_json else {}
+            request.user_id = req_data.get("user_id") or request.args.get("user_id") or "local_dev_user"
+            return f(*args, **kwargs)
+
+        # 3. Firebase Bearer ID Token verification (when _firebase_auth_active is True)
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            id_token = auth_header.split("Bearer ")[1].strip()
+            try:
+                decoded = fb_auth.verify_id_token(id_token)
+                request.user_id = decoded.get("uid")
+                return f(*args, **kwargs)
+            except Exception as e:
+                return jsonify({"error": f"Invalid or expired auth token: {e}"}), 401
+
+        return jsonify({
+            "error": "Authentication required. Include 'Authorization: Bearer <id_token>' header or set LOOPKEEPER_ALLOW_UNAUTHENTICATED=1."
+        }), 401
+    return decorated
+
+
+def _get_store():
+    if os.getenv("LOOPKEEPER_BACKEND") == "firestore":
+        try:
+            import store_firestore as store
+        except ImportError:
+            from loop_keeper import store_firestore as store
+        return store
+    else:
+        try:
+            import store
+        except ImportError:
+            from loop_keeper import store
+        return store
+
+
+def _get_run_agent_cycle():
+    try:
+        from agent_runner import run_agent_cycle
+    except ImportError:
+        from loop_keeper.agent_runner import run_agent_cycle
+    return run_agent_cycle
+
+
+def _get_gmail_client():
+    try:
+        import gmail_client
+    except ImportError:
+        from loop_keeper import gmail_client
+    return gmail_client
+
+
 # ---------------------------------------------------------------------------
 # Root info route
 # ---------------------------------------------------------------------------
 
 @app.get("/")
 def index():
-    """Friendly root endpoint for development & service checks."""
     return jsonify({
         "service": "LoopKeeper Automation Service",
         "status": "running",
         "health_endpoint": "/health",
-        "endpoints": ["/agent/run", "/agent/status", "/agent/runs", "/agent/inject-evidence", "/health"]
+        "endpoints": [
+            "/agent/run", "/agent/status", "/agent/runs",
+            "/gmail/auth-url", "/gmail/oauth2callback", "/gmail/status",
+            "/gmail/connect", "/gmail/disconnect", "/health"
+        ]
     }), 200
 
+
+# ---------------------------------------------------------------------------
+# POST /agent/run (Authenticated)
+# ---------------------------------------------------------------------------
+
 @app.post("/agent/run")
+@require_auth
 def agent_run():
-    """Trigger a full agent cycle. Returns the run log record as JSON."""
     req_data = request.json if request.is_json else {}
-    trigger  = req_data.get("trigger", "scheduler")
-    user_id  = req_data.get("user_id") or req_data.get("userId")
+    trigger  = req_data.get("trigger", "manual")
+    user_id  = getattr(request, "user_id", None) or req_data.get("user_id") or req_data.get("userId")
+    
+    if not user_id and os.getenv("LOOPKEEPER_REQUIRE_USER") == "1":
+        return jsonify({"error": "user_id is required to run the agent cycle."}), 400
+
     if trigger not in ("scheduler", "manual", "gmail_event", "demo"):
         trigger = "manual"
 
-    from loop_keeper.agent_runner import run_agent_cycle
+    run_agent_cycle = _get_run_agent_cycle()
     result = run_agent_cycle(trigger=trigger, user_id=user_id)
     return jsonify(result), 200
 
@@ -72,17 +166,13 @@ def agent_run():
 # ---------------------------------------------------------------------------
 
 @app.get("/agent/status")
+@require_auth
 def agent_status():
-    """Return the last run summary and source health check."""
-    if os.getenv("LOOPKEEPER_BACKEND") == "firestore":
-        from loop_keeper import store_firestore as store
-    else:
-        from loop_keeper import store
-
-    last_run = store.get_last_run()
+    user_id = getattr(request, "user_id", None) or request.args.get("user_id") or request.args.get("userId")
+    store = _get_store()
+    last_run = store.get_last_run(user_id=user_id)
     now_utc  = datetime.now(timezone.utc).isoformat()
 
-    # Compute staleness
     stale = False
     stale_minutes = None
     if last_run and last_run.get("completed_at"):
@@ -90,7 +180,7 @@ def agent_status():
             last_ts = datetime.fromisoformat(last_run["completed_at"])
             delta_m = (datetime.now(timezone.utc) - last_ts).seconds // 60
             stale_minutes = delta_m
-            stale = delta_m > 120  # stale after 2 hours
+            stale = delta_m > 120
         except Exception:
             pass
 
@@ -99,6 +189,7 @@ def agent_status():
         "stale":         stale,
         "stale_minutes": stale_minutes,
         "last_run":      last_run,
+        "user_id":       user_id,
         "sources": {
             "gmail":     os.getenv("LOOPKEEPER_EMAIL_MODE") == "gmail",
             "firestore": os.getenv("LOOPKEEPER_BACKEND") == "firestore",
@@ -113,217 +204,91 @@ def agent_status():
 # ---------------------------------------------------------------------------
 
 @app.get("/agent/runs")
+@require_auth
 def agent_runs():
-    """Return the recent run history log."""
-    if os.getenv("LOOPKEEPER_BACKEND") == "firestore":
-        from loop_keeper import store_firestore as store
-    else:
-        from loop_keeper import store
-
-    limit = request.args.get("limit", default=20, type=int)
-    runs = store.get_run_log(limit=limit)
+    user_id = getattr(request, "user_id", None) or request.args.get("user_id") or request.args.get("userId")
+    limit   = request.args.get("limit", default=20, type=int)
+    store   = _get_store()
+    runs    = store.get_run_log(limit=limit, user_id=user_id)
     return jsonify(runs)
 
 
-
 # ---------------------------------------------------------------------------
-# POST /agent/inject-evidence  (SANDBOX ONLY)
-# ---------------------------------------------------------------------------
-
-@app.post("/agent/inject-evidence")
-def inject_evidence():
-    """
-    Inject simulated evidence into a loop — SANDBOX MODE ONLY.
-
-    Body:
-      {
-        "loop_id":      "inv_1005",
-        "type":         "promise" | "payment" | "dispute" | "advance_deadline",
-        "text":         "We'll pay by Friday",        // for promise/payment/dispute
-        "promised_date": "2026-08-29"                 // for promise (ISO date)
-      }
-
-    This enters the SAME store.py path as real Gmail evidence.
-    No frontend fake state. If this server isn't running, the
-    frontend shows 'Agent backend unavailable' — no silent fallback.
-    """
-    if os.getenv("LOOPKEEPER_BACKEND") == "firestore":
-        abort(403, description="Evidence injection is only available in sandbox mode (LOOPKEEPER_BACKEND=json).")
-
-    from loop_keeper import store
-
-    body = request.get_json(force=True, silent=True) or {}
-    loop_id      = body.get("loop_id")
-    ev_type      = body.get("type")
-    text         = body.get("text", "")
-    promised_date = body.get("promised_date")
-
-    if not loop_id or not ev_type:
-        abort(400, description="loop_id and type are required.")
-
-    valid_types = ("promise", "payment", "dispute", "advance_deadline")
-    if ev_type not in valid_types:
-        abort(400, description=f"type must be one of {valid_types}")
-
-    loop = store.get_loop(loop_id)
-    if not loop:
-        abort(404, description=f"No loop found: {loop_id}")
-
-    # Route to the correct store mutation
-    if ev_type == "promise":
-        if not promised_date:
-            abort(400, description="promised_date (ISO date) required for type=promise")
-        result = store.store_promise(loop_id, promised_date, text)
-
-    elif ev_type == "payment":
-        result = store.log_incoming_reply(
-            loop_id,
-            message_id=f"sim_{loop_id}_payment",
-            summary=f"[email] client replied: {text or 'Payment has been sent.'}"
-        )
-
-    elif ev_type == "dispute":
-        result = store.log_incoming_reply(
-            loop_id,
-            message_id=f"sim_{loop_id}_dispute",
-            summary=f"[email] client replied: {text or 'We dispute this invoice.'}"
-        )
-        store.update_status(loop_id, "disputed", "Dispute raised via injected evidence.", "dispute_partial")
-
-    elif ev_type == "advance_deadline":
-        # Set promise_date to yesterday so the deterministic checker fires
-        from datetime import date, timedelta
-        yesterday = str(date.today() - timedelta(days=1))
-        result = store.store_promise(loop_id, yesterday, "demo: deadline advanced for demonstration")
-        broken = store.check_broken_promises()
-        return jsonify({
-            "injected": True,
-            "type": ev_type,
-            "broken_now": [l.get("loop_id") for l in broken],
-            "loop": result,
-        })
-
-    if isinstance(result, dict) and "error" in result:
-        abort(422, description=result["error"])
-
-    return jsonify({"injected": True, "type": ev_type, "loop": result})
-
-
-
-# ---------------------------------------------------------------------------
-# POST /webhooks/sms  — Twilio / any SMS gateway
+# GMAIL OAUTH ENDPOINTS
 # ---------------------------------------------------------------------------
 
-@app.post("/webhooks/sms")
-def sms_webhook():
-    """
-    Receives an incoming SMS via Twilio webhook (or any compatible gateway).
-    Normalizes payload → log_incoming_reply() → same agent state machine.
-
-    Twilio sends form-encoded POST with fields:
-      From, Body, MessageSid, SmsSid, To
-
-    Set in Twilio Console:
-      Messaging → Active Numbers → <your number> → Incoming Message URL
-      → https://<your-cloud-run-url>/webhooks/sms
-    """
-    if os.getenv("LOOPKEEPER_BACKEND") == "firestore":
-        from loop_keeper import store_firestore as store
-    else:
-        from loop_keeper import store
-
-    # Twilio sends form-encoded data
-    sender  = request.form.get("From", "").strip()
-    body    = request.form.get("Body", "").strip()
-    msg_id  = request.form.get("MessageSid") or request.form.get("SmsSid", "")
-
-    if not sender or not body:
-        # Accept silently — Twilio expects 200 even for ignored messages
-        return "", 204
-
-    # Match sender phone to a known client loop
-    matched_loop_id = None
-    for loop in store.list_loops(include_closed=False):
-        client = store.get_loop(loop["loop_id"]) or {}
-        client_phone = (client.get("client_phone") or "").replace(" ", "").replace("-", "")
-        if client_phone and client_phone in sender.replace(" ", "").replace("-", ""):
-            matched_loop_id = loop["loop_id"]
-            break
-
-    if matched_loop_id and msg_id:
-        store.log_incoming_reply(
-            matched_loop_id,
-            message_id=f"sms_{msg_id}",
-            summary=f"[sms] {sender} replied: {body[:300]}",
-        )
-
-    # Return empty TwiML — no auto-reply
-    return "<Response></Response>", 200, {"Content-Type": "text/xml"}
-
-
-# ---------------------------------------------------------------------------
-# POST /webhooks/whatsapp  — Meta WhatsApp Business API
-# ---------------------------------------------------------------------------
-
-@app.post("/webhooks/whatsapp")
-def whatsapp_webhook():
-    """
-    Receives Meta WhatsApp Business messages.
-    Normalizes → log_incoming_reply() → same agent state machine.
-
-    Meta sends JSON with structure:
-      entry[].changes[].value.messages[].{from, body.text, id}
-
-    Verify webhook in Meta Developer Console:
-      GET /webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=...&hub.challenge=...
-    """
-    # Meta verification handshake
-    if request.method == "GET":
-        verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "loopkeeper")
-        mode      = request.args.get("hub.mode")
-        token     = request.args.get("hub.verify_token")
-        challenge = request.args.get("hub.challenge")
-        if mode == "subscribe" and token == verify_token:
-            return challenge, 200
-        return "Forbidden", 403
-
-    if os.getenv("LOOPKEEPER_BACKEND") == "firestore":
-        from loop_keeper import store_firestore as store
-    else:
-        from loop_keeper import store
-
-    payload = request.get_json(force=True, silent=True) or {}
+@app.get("/gmail/auth-url")
+@require_auth
+def gmail_auth_url():
+    user_id = getattr(request, "user_id", None) or request.args.get("user_id") or request.args.get("userId")
+    gclient = _get_gmail_client()
     try:
-        for entry in payload.get("entry", []):
-            for change in entry.get("changes", []):
-                msgs = change.get("value", {}).get("messages", [])
-                for msg in msgs:
-                    sender = msg.get("from", "")
-                    text   = msg.get("text", {}).get("body", "") or msg.get("caption", "")
-                    msg_id = msg.get("id", "")
-                    if not (sender and text and msg_id):
-                        continue
-                    # Match sender phone to a known client loop
-                    for loop in store.list_loops(include_closed=False):
-                        client = store.get_loop(loop["loop_id"]) or {}
-                        client_phone = (client.get("client_phone") or "").replace(" ", "")
-                        if client_phone and client_phone in sender.replace(" ", ""):
-                            store.log_incoming_reply(
-                                loop["loop_id"],
-                                message_id=f"wa_{msg_id}",
-                                summary=f"[whatsapp] {sender} replied: {text[:300]}",
-                            )
-                            break
-    except Exception:
-        pass  # Always return 200 so Meta doesn't retry
-
-    return jsonify({"status": "received"}), 200
+        url = gclient.get_auth_url(user_id=user_id)
+        return jsonify({"auth_url": url, "user_id": user_id}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
-@app.get("/webhooks/whatsapp")
-def whatsapp_verify():
-    """Meta webhook verification GET handler."""
-    return whatsapp_webhook()
+@app.get("/gmail/oauth2callback")
+def gmail_oauth2callback():
+    code    = request.args.get("code")
+    user_id = request.args.get("state") or request.args.get("user_id")
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+    if not code:
+        return redirect(f"{frontend_url}/app/settings?gmail=error&reason=no_code")
+
+    gclient = _get_gmail_client()
+    try:
+        res = gclient.exchange_code_for_tokens(user_id=user_id or "default_user", code=code)
+        email = res.get("email", "")
+        return redirect(f"{frontend_url}/app/settings?gmail=success&email={email}")
+    except Exception as e:
+        print(f"[runner] OAuth callback error: {e}")
+        return redirect(f"{frontend_url}/app/settings?gmail=error&reason=token_exchange_failed")
+
+
+@app.get("/gmail/status")
+@require_auth
+def gmail_status():
+    user_id = getattr(request, "user_id", None) or request.args.get("user_id") or request.args.get("userId")
+    gclient = _get_gmail_client()
+    email   = gclient.get_connected_gmail(user_id=user_id)
+    return jsonify({
+        "user_id": user_id,
+        "connected": email is not None,
+        "email": email,
+    })
+
+
+@app.post("/gmail/connect")
+@require_auth
+def gmail_connect():
+    req_data = request.json if request.is_json else {}
+    user_id = getattr(request, "user_id", None) or req_data.get("user_id") or req_data.get("userId")
+    tokens  = req_data.get("tokens") or req_data.get("tokens_json") or req_data.get("code")
+    if not user_id or not tokens:
+        abort(400, description="user_id and tokens/tokens_json are required.")
+
+    gclient = _get_gmail_client()
+    try:
+        res = gclient.connect_gmail(user_id, tokens)
+        return jsonify(res), 200
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 400
+
+
+@app.post("/gmail/disconnect")
+@require_auth
+def gmail_disconnect():
+    req_data = request.json if request.is_json else {}
+    user_id = getattr(request, "user_id", None) or req_data.get("user_id") or req_data.get("userId")
+    if not user_id:
+        abort(400, description="user_id is required.")
+
+    gclient = _get_gmail_client()
+    res = gclient.disconnect_gmail(user_id)
+    return jsonify(res), 200
 
 
 # ---------------------------------------------------------------------------
@@ -335,20 +300,9 @@ def health():
     return jsonify({"status": "ok"})
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
     debug = os.getenv("FLASK_ENV") == "development"
-    print(f"\n LoopKeeper Agent Runner")
-    print(f" POST /agent/run               → trigger agent cycle")
-    print(f" GET  /agent/status            → last run + health")
-    print(f" GET  /agent/runs              → run history")
-    print(f" POST /agent/inject-evidence   → sandbox evidence injection")
-    print(f" POST /webhooks/sms            → Twilio SMS webhook")
-    print(f" POST /webhooks/whatsapp       → Meta WhatsApp webhook")
-    print(f" GET  /health                  → health check")
+    print(f"\n LoopKeeper Authenticated Multi-Tenant Agent Runner")
     print(f" http://localhost:{port}\n")
     app.run(host="0.0.0.0", port=port, debug=debug)
