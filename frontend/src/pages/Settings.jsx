@@ -2,7 +2,7 @@
  * Settings.jsx — Agent configuration, policy thresholds, and channel integrations.
  * Explains how Gmail, SMS, WhatsApp, and backend runner connect and operate.
  */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useApp } from "../contexts/AppContext.js";
 import { useAuth } from "../auth/AuthContext.jsx";
@@ -54,6 +54,7 @@ const POLICY_THRESHOLDS = [
 export default function Settings() {
   const { isFallback, loops, loadSampleDataset } = useApp();
   const { user, isDemoMode } = useAuth();
+
   const [testingGmail, setTestingGmail] = useState(false);
   const [gmailStatus, setGmailStatus] = useState(null);
   const [triggeringAgent, setTriggeringAgent] = useState(false);
@@ -63,15 +64,86 @@ export default function Settings() {
   const pendingApprovals = loops.filter(l => l.tier === 2 && l.draft).length;
   const userEmail = user?.email || "sandbox@loopkeeper.ai";
 
+  useEffect(() => {
+    checkGmailStatus();
+
+    // Parse OAuth callback result from URL params
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("gmail") === "success") {
+      setGmailStatus({ connected: true, email: params.get("email") || userEmail });
+    } else if (params.get("gmail") === "error") {
+      setGmailStatus({ connected: false, error: "OAuth authorization failed or was cancelled." });
+    }
+  }, [user]);
+
+  const checkGmailStatus = async () => {
+    if (!user || isDemoMode) return;
+    const backendUrl = import.meta.env.VITE_CLOUD_RUN_URL || "http://localhost:8080";
+    try {
+      const idToken = await user.getIdToken().catch(() => null);
+      const res = await fetch(`${backendUrl}/gmail/status?user_id=${user.uid}`, {
+        headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGmailStatus(data);
+      }
+    } catch {
+      setGmailStatus({ connected: false });
+    }
+  };
+
+  const handleConnectGmail = async () => {
+    if (!user) return;
+    const backendUrl = import.meta.env.VITE_CLOUD_RUN_URL || "http://localhost:8080";
+    try {
+      const idToken = await user.getIdToken().catch(() => null);
+      const res = await fetch(`${backendUrl}/gmail/auth-url?user_id=${user.uid}`, {
+        headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.auth_url) {
+        window.location.href = data.auth_url;
+      } else {
+        alert(data.error || "Failed to initiate Gmail OAuth. Download credentials.json (OAuth client ID) from Google Cloud Console and save it to the loop_keeper directory.");
+      }
+    } catch (e) {
+      alert(`Error initiating Gmail OAuth: ${e.message}`);
+    }
+  };
+
+  const handleDisconnectGmail = async () => {
+    if (!user) return;
+    const backendUrl = import.meta.env.VITE_CLOUD_RUN_URL || "http://localhost:8080";
+    try {
+      const idToken = await user.getIdToken().catch(() => null);
+      await fetch(`${backendUrl}/gmail/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
+        body: JSON.stringify({ user_id: user.uid }),
+      });
+      setGmailStatus({ connected: false });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleTestAgent = async () => {
     setTriggeringAgent(true);
     setAgentRunMsg(null);
     const backendUrl = import.meta.env.VITE_CLOUD_RUN_URL || "http://localhost:8080";
     try {
+      const idToken = user ? await user.getIdToken().catch(() => null) : null;
       const res = await fetch(`${backendUrl}/agent/run`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trigger: "manual" }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
+        body: JSON.stringify({ trigger: "manual", user_id: user?.uid }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -111,35 +183,66 @@ export default function Settings() {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* Gmail Card */}
           <div style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 12, padding: "20px 22px" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(66,133,244,0.12)", border: "1px solid rgba(66,133,244,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Mail size={18} color="#4285F4" />
                 </div>
                 <div>
                   <div style={{ fontFamily: f.body, fontWeight: 600, fontSize: 15, color: "var(--c-text)" }}>
-                    Gmail API Integration
+                    Gmail Workspace Integration (OAuth 2.0)
                   </div>
                   <div style={{ fontFamily: f.mono, fontSize: 11, color: "var(--c-text-3)" }}>
-                    Connected Account: <span style={{ color: "var(--c-teal)" }}>{userEmail}</span>
+                    Connected Mailbox: <span style={{ color: gmailStatus?.connected ? "var(--c-teal)" : "var(--c-tier3)" }}>
+                      {gmailStatus?.email || "Not Connected"}
+                    </span>
                   </div>
                 </div>
               </div>
               <span style={{
                 fontFamily: f.mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em",
-                color: "#4285F4", background: "rgba(66,133,244,0.1)", border: "1px solid rgba(66,133,244,0.25)",
+                color: gmailStatus?.connected ? "#34A853" : "var(--c-tier2)",
+                background: gmailStatus?.connected ? "rgba(52,168,83,0.1)" : "rgba(245,158,11,0.1)",
+                border: `1px solid ${gmailStatus?.connected ? "rgba(52,168,83,0.3)" : "rgba(245,158,11,0.3)"}`,
                 borderRadius: 4, padding: "3px 8px", textTransform: "uppercase",
               }}>
-                GMAIL ACTIVE
+                {gmailStatus?.connected ? "GMAIL CONNECTED" : "NOT CONNECTED"}
               </span>
             </div>
 
-            <div style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)", lineHeight: 1.6, marginBottom: 14 }}>
-              LoopKeeper uses OAuth 2.0 (<code>gmail.modify</code> scope) to monitor client replies and send follow-ups.
-              Before the agent reasons, it scans for new client emails matching your open invoice client addresses.
+            <div style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)", lineHeight: 1.6, marginBottom: 16 }}>
+              LoopKeeper uses user-scoped OAuth 2.0 (<code>gmail.modify</code> scope) to monitor client replies and send follow-ups.
+              Authorization tokens are stored securely per account.
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+              {gmailStatus?.connected ? (
+                <button
+                  onClick={handleDisconnectGmail}
+                  style={{
+                    padding: "8px 16px", borderRadius: 7,
+                    background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
+                    color: "var(--c-tier3)", fontFamily: f.body, fontWeight: 600, fontSize: 12, cursor: "pointer",
+                  }}
+                >
+                  Disconnect Gmail
+                </button>
+              ) : (
+                <button
+                  onClick={handleConnectGmail}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "9px 18px", borderRadius: 8,
+                    background: "#4285F4", color: "#FFFFFF",
+                    fontFamily: f.body, fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer",
+                    boxShadow: "0 0 16px rgba(66,133,244,0.3)",
+                  }}
+                >
+                  <Mail size={14} color="#FFF" />
+                  Connect Gmail Workspace
+                </button>
+              )}
+
               <button
                 onClick={handleTestAgent}
                 disabled={triggeringAgent}
@@ -152,16 +255,6 @@ export default function Settings() {
               >
                 <RefreshCw size={13} style={{ animation: triggeringAgent ? "spin 1s linear infinite" : "none" }} />
                 {triggeringAgent ? "Running Agent…" : "Trigger Agent Run & Check Inbox"}
-              </button>
-              <button
-                onClick={loadSampleDataset}
-                style={{
-                  padding: "8px 16px", borderRadius: 7,
-                  background: "var(--c-surface-2)", border: "1px solid var(--c-border)",
-                  color: "var(--c-text-2)", fontFamily: f.mono, fontSize: 11, cursor: "pointer",
-                }}
-              >
-                Load Sample Test Invoices
               </button>
             </div>
 

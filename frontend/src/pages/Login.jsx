@@ -4,12 +4,13 @@
  * Demo bypass: skips auth entirely → sandbox mode.
  * No hardcoded credentials anywhere.
  */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Zap, Mail, Lock, User, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { f } from "../theme/tokens.js";
 import Logo from "../components/Logo.jsx";
+import { useAuth } from "../auth/AuthContext.jsx";
 import {
   signInWithGoogle,
   signInWithEmail,
@@ -71,6 +72,7 @@ function InputRow({ icon: Icon, type, placeholder, value, onChange, onToggle, sh
 
 export default function Login() {
   const navigate = useNavigate();
+  const { user, isDemoMode, enterDemoMode } = useAuth();
   const [tab, setTab] = useState("signin");
   const [name, setName]         = useState("");
   const [email, setEmail]       = useState("");
@@ -81,10 +83,16 @@ export default function Login() {
 
   const clearError = () => setError("");
 
+  useEffect(() => {
+    if (user || isDemoMode) {
+      navigate("/app", { replace: true });
+    }
+  }, [user, isDemoMode, navigate]);
+
   /* ── Demo bypass ─────────────────────────────────────── */
   const handleDemo = () => {
-    sessionStorage.setItem("lk_demo_mode", "true");
-    navigate("/app");
+    enterDemoMode();
+    navigate("/app", { replace: true });
   };
 
   /* ── Google sign-in ───────────────────────────────────── */

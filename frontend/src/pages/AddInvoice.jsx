@@ -8,6 +8,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useApp } from "../contexts/AppContext.js";
+import { useAuth } from "../auth/AuthContext.jsx";
 import { annotateLoop } from "../data/priorityLogic.js";
 import { f, formatCurrency } from "../theme/tokens.js";
 import { db } from "../data/firestoreClient.js";
@@ -58,6 +59,7 @@ const inputStyle = (hasError = false) => ({
 export default function AddInvoice() {
   const navigate = useNavigate();
   const { isFallback } = useApp();
+  const { user, isDemoMode } = useAuth();
 
   const [form, setForm] = useState({
     client_name:       "",
@@ -96,8 +98,11 @@ export default function AddInvoice() {
 
     setSubmitting(true);
 
+    const activeUserId = user?.uid || (isDemoMode ? "sandbox_demo_user" : "sandbox_local_user");
+
     const newLoop = annotateLoop({
       loop_id:        `inv_${Date.now()}`,
+      user_id:        activeUserId,
       client_id:      `cl_${form.client_email.split("@")[0].replace(/\W/g, "_")}`,
       client_name:    form.client_name.trim(),
       client_email:   form.client_email.trim().toLowerCase(),

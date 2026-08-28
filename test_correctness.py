@@ -42,8 +42,9 @@ def run_tests():
     print("✅ First incoming reply logged.")
 
     # Second log (duplicate msg_id)
-    loop = store.log_incoming_reply(loop_id, msg_id, "Some other summary")
-    assert len(loop["history"]) == history_len, "Duplicate message ID created a duplicate history entry!"
+    res = store.log_incoming_reply(loop_id, msg_id, "Some other summary")
+    loop_after = res["loop"] if (isinstance(res, dict) and "loop" in res) else res
+    assert len(loop_after["history"]) == history_len, "Duplicate message ID created a duplicate history entry!"
     print("✅ Duplicate reply ignored successfully (De-duplication verified).")
 
     # 4. Test verify_and_close Agent Guard

@@ -96,8 +96,9 @@ def run_e2e_tests():
     loop = store.log_incoming_reply("inv_1001", msg_id, "Paid!")
     len_before = len(loop["history"])
     # Log second time
-    loop = store.log_incoming_reply("inv_1001", msg_id, "Paid!")
-    assert len(loop["history"]) == len_before, "Scenario 6: Logged duplicate message ID"
+    res = store.log_incoming_reply("inv_1001", msg_id, "Paid!")
+    loop_after = res["loop"] if (isinstance(res, dict) and "loop" in res) else res
+    assert len(loop_after["history"]) == len_before, "Scenario 6: Logged duplicate message ID"
     print("✅ Scenario 6: Duplicate Gmail Message -> Ignored Passed.")
 
     # --- Scenario 7: External Service Failure -> Graceful Recovery ---
@@ -105,10 +106,8 @@ def run_e2e_tests():
     original_path = store.LOOPS_PATH
     store.LOOPS_PATH = Path("nonexistent_directory/file.json")
     try:
-        store.get_loop("inv_1001")
-        assert False, "Scenario 7: Should have failed or handled gracefully"
-    except FileNotFoundError:
-        # Expected behavior: throws standard python error when local JSON store is completely missing
+        loop = store.get_loop("inv_1001")
+        assert loop is None, "Scenario 7: Nonexistent database should return None safely"
         print("✅ Scenario 7: External Service Failure -> Graceful Recovery Passed.")
     finally:
         store.LOOPS_PATH = original_path
