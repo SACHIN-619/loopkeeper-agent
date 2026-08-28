@@ -1,259 +1,257 @@
 {
-  "loops": {
-    "inv_1001": {
-      "loop_id": "inv_1001",
-      "parent_loop_id": null,
-      "client_id": "cl_brightpath",
-      "client_name": "Bright Path Design Co.",
-      "client_email": "accounts@brightpathdesign.example.com",
-      "invoice_number": "INV-1001",
-      "amount": 4200.0,
-      "disputed_amount": 0.0,
-      "undisputed_amount": 4200.0,
-      "currency": "USD",
-      "issued_date": "2026-07-10",
-      "due_date": "2026-07-24",
-      "status": "overdue",
-      "exception_type": "fresh_overdue",
-      "contact_count": 0,
-      "last_contact_date": null,
-      "escalation_level": 0,
-      "history": [
-        {
-          "date": "2026-07-10",
-          "event": "invoice sent"
-        },
-        {
-          "date": "2026-07-24",
-          "event": "became overdue, no contact yet"
-        },
-        {
-          "date": "2026-08-27",
-          "event": "[INCOMING REPLY] Paid!"
-        }
-      ],
-      "processed_message_ids": [
-        "duplicate_123"
-      ],
-      "unread_reply": true
-    },
-    "inv_1002": {
-      "loop_id": "inv_1002",
-      "parent_loop_id": null,
-      "client_id": "cl_haldenrue",
-      "client_name": "Halden & Rue LLP",
-      "client_email": "billing@haldenrue.example.com",
-      "invoice_number": "INV-1002",
-      "amount": 1800.0,
-      "disputed_amount": 0.0,
-      "undisputed_amount": 1800.0,
-      "currency": "USD",
-      "issued_date": "2026-06-15",
-      "due_date": "2026-06-29",
-      "status": "promised",
-      "exception_type": "promise_pending",
-      "contact_count": 2,
-      "last_contact_date": "2026-08-05",
-      "escalation_level": 0,
-      "history": [
-        {
-          "date": "2026-06-15",
-          "event": "invoice sent"
-        },
-        {
-          "date": "2026-06-29",
-          "event": "became overdue"
-        },
-        {
-          "date": "2026-07-15",
-          "event": "[email] sent friendly reminder #1"
-        },
-        {
-          "date": "2026-08-05",
-          "event": "[email] client replied: will pay by Friday Aug 21"
-        }
-      ]
-    },
-    "inv_1003": {
-      "loop_id": "inv_1003",
-      "parent_loop_id": null,
-      "client_id": "cl_kestrel",
-      "client_name": "Kestrel Home Goods",
-      "client_email": "ap@kestrelhome.example.com",
-      "invoice_number": "INV-1003",
-      "amount": 950.0,
-      "disputed_amount": 0.0,
-      "undisputed_amount": 950.0,
-      "currency": "USD",
-      "issued_date": "2026-05-20",
-      "due_date": "2026-06-03",
-      "status": "overdue",
-      "exception_type": "silent",
-      "contact_count": 3,
-      "last_contact_date": "2026-07-20",
-      "escalation_level": 0,
-      "history": [
-        {
-          "date": "2026-05-20",
-          "event": "invoice sent"
-        },
-        {
-          "date": "2026-06-03",
-          "event": "became overdue"
-        },
-        {
-          "date": "2026-06-10",
-          "event": "[email] sent friendly reminder #1 \u2014 no reply"
-        },
-        {
-          "date": "2026-06-25",
-          "event": "[email] sent reminder #2 \u2014 no reply"
-        },
-        {
-          "date": "2026-07-20",
-          "event": "[email] sent firmer reminder #3 \u2014 no reply"
-        }
-      ]
-    },
-    "inv_1004": {
-      "loop_id": "inv_1004",
-      "parent_loop_id": null,
-      "client_id": "cl_norr",
-      "client_name": "Norr Studio",
-      "client_email": "hello@norrstudio.example.com",
-      "invoice_number": "INV-1004",
-      "amount": 2600.0,
-      "disputed_amount": 600.0,
-      "undisputed_amount": 2000.0,
-      "currency": "USD",
-      "issued_date": "2026-07-01",
-      "due_date": "2026-07-15",
-      "status": "disputed",
-      "exception_type": "dispute_partial",
-      "contact_count": 1,
-      "last_contact_date": "2026-07-30",
-      "escalation_level": 0,
-      "history": [
-        {
-          "date": "2026-07-01",
-          "event": "invoice sent"
-        },
-        {
-          "date": "2026-07-15",
-          "event": "became overdue"
-        },
-        {
-          "date": "2026-07-30",
-          "event": "[email] client replied: says two revision rounds were already included in the quote, disputes the $600 revision line item; no objection to the remaining $2,000"
-        }
-      ]
-    },
-    "inv_1005": {
-      "loop_id": "inv_1005",
-      "parent_loop_id": null,
-      "client_id": "cl_ambit",
-      "client_name": "Ambit Robotics",
-      "client_email": "finance@ambitrobotics.example.com",
-      "invoice_number": "INV-1005",
-      "amount": 7300.0,
-      "disputed_amount": 0.0,
-      "undisputed_amount": 7300.0,
-      "currency": "USD",
-      "issued_date": "2026-08-03",
-      "due_date": "2026-08-17",
-      "status": "overdue",
-      "exception_type": "fresh_overdue",
-      "contact_count": 0,
-      "last_contact_date": null,
-      "escalation_level": 0,
-      "history": [
-        {
-          "date": "2026-08-03",
-          "event": "invoice sent"
-        },
-        {
-          "date": "2026-08-17",
-          "event": "became overdue, no contact yet"
-        }
-      ]
-    },
-    "inv_1006": {
-      "loop_id": "inv_1006",
-      "parent_loop_id": null,
-      "client_id": "cl_torrey",
-      "client_name": "Torrey & Vance Consulting",
-      "client_email": "payables@torreyvance.example.com",
-      "invoice_number": "INV-1006",
-      "amount": 18500.0,
-      "disputed_amount": 18500.0,
-      "undisputed_amount": 0.0,
-      "currency": "USD",
-      "issued_date": "2026-06-20",
-      "due_date": "2026-07-04",
-      "status": "disputed",
-      "exception_type": "dispute_full",
-      "contact_count": 2,
-      "last_contact_date": "2026-08-01",
-      "escalation_level": 0,
-      "history": [
-        {
-          "date": "2026-06-20",
-          "event": "invoice sent"
-        },
-        {
-          "date": "2026-07-04",
-          "event": "became overdue"
-        },
-        {
-          "date": "2026-07-18",
-          "event": "[email] sent reminder #1"
-        },
-        {
-          "date": "2026-08-01",
-          "event": "[email] client disputes the entire scope of work, says project was never formally approved"
-        }
-      ]
-    },
-    "inv_1007": {
-      "loop_id": "inv_1007",
-      "parent_loop_id": null,
-      "client_id": "cl_fernwood",
-      "client_name": "Fernwood Realty",
-      "client_email": "accounts@fernwoodrealty.example.com",
-      "invoice_number": "INV-1007",
-      "amount": 3100.0,
-      "disputed_amount": 0.0,
-      "undisputed_amount": 3100.0,
-      "currency": "USD",
-      "issued_date": "2026-06-01",
-      "due_date": "2026-06-15",
-      "status": "closed",
-      "exception_type": "resolved",
-      "contact_count": 1,
-      "last_contact_date": "2026-07-05",
-      "escalation_level": 0,
-      "history": [
-        {
-          "date": "2026-06-01",
-          "event": "invoice sent"
-        },
-        {
-          "date": "2026-06-15",
-          "event": "became overdue"
-        },
-        {
-          "date": "2026-06-20",
-          "event": "[email] sent friendly reminder #1"
-        },
-        {
-          "date": "2026-07-05",
-          "event": "[email] client confirmed payment sent"
-        },
-        {
-          "date": "2026-07-06",
-          "event": "status -> closed: payment verified"
-        }
-      ]
-    }
+  "inv_1001": {
+    "loop_id": "inv_1001",
+    "parent_loop_id": null,
+    "client_id": "cl_brightpath",
+    "client_name": "Bright Path Design Co.",
+    "client_email": "accounts@brightpathdesign.example.com",
+    "invoice_number": "INV-1001",
+    "amount": 4200.0,
+    "disputed_amount": 0.0,
+    "undisputed_amount": 4200.0,
+    "currency": "USD",
+    "issued_date": "2026-07-10",
+    "due_date": "2026-07-24",
+    "status": "overdue",
+    "exception_type": "fresh_overdue",
+    "contact_count": 0,
+    "last_contact_date": null,
+    "escalation_level": 0,
+    "history": [
+      {
+        "date": "2026-07-10",
+        "event": "invoice sent"
+      },
+      {
+        "date": "2026-07-24",
+        "event": "became overdue, no contact yet"
+      },
+      {
+        "event": "[incoming reply] Paid!",
+        "date": "2026-08-28T16:17:15.892139+00:00"
+      }
+    ],
+    "processed_message_ids": [
+      "duplicate_123"
+    ],
+    "unread_reply": true
+  },
+  "inv_1002": {
+    "loop_id": "inv_1002",
+    "parent_loop_id": null,
+    "client_id": "cl_haldenrue",
+    "client_name": "Halden & Rue LLP",
+    "client_email": "billing@haldenrue.example.com",
+    "invoice_number": "INV-1002",
+    "amount": 1800.0,
+    "disputed_amount": 0.0,
+    "undisputed_amount": 1800.0,
+    "currency": "USD",
+    "issued_date": "2026-06-15",
+    "due_date": "2026-06-29",
+    "status": "promised",
+    "exception_type": "promise_pending",
+    "contact_count": 2,
+    "last_contact_date": "2026-08-05",
+    "escalation_level": 0,
+    "history": [
+      {
+        "date": "2026-06-15",
+        "event": "invoice sent"
+      },
+      {
+        "date": "2026-06-29",
+        "event": "became overdue"
+      },
+      {
+        "date": "2026-07-15",
+        "event": "[email] sent friendly reminder #1"
+      },
+      {
+        "date": "2026-08-05",
+        "event": "[email] client replied: will pay by Friday Aug 21"
+      }
+    ]
+  },
+  "inv_1003": {
+    "loop_id": "inv_1003",
+    "parent_loop_id": null,
+    "client_id": "cl_kestrel",
+    "client_name": "Kestrel Home Goods",
+    "client_email": "ap@kestrelhome.example.com",
+    "invoice_number": "INV-1003",
+    "amount": 950.0,
+    "disputed_amount": 0.0,
+    "undisputed_amount": 950.0,
+    "currency": "USD",
+    "issued_date": "2026-05-20",
+    "due_date": "2026-06-03",
+    "status": "overdue",
+    "exception_type": "silent",
+    "contact_count": 3,
+    "last_contact_date": "2026-07-20",
+    "escalation_level": 0,
+    "history": [
+      {
+        "date": "2026-05-20",
+        "event": "invoice sent"
+      },
+      {
+        "date": "2026-06-03",
+        "event": "became overdue"
+      },
+      {
+        "date": "2026-06-10",
+        "event": "[email] sent friendly reminder #1 \u2014 no reply"
+      },
+      {
+        "date": "2026-06-25",
+        "event": "[email] sent reminder #2 \u2014 no reply"
+      },
+      {
+        "date": "2026-07-20",
+        "event": "[email] sent firmer reminder #3 \u2014 no reply"
+      }
+    ]
+  },
+  "inv_1004": {
+    "loop_id": "inv_1004",
+    "parent_loop_id": null,
+    "client_id": "cl_norr",
+    "client_name": "Norr Studio",
+    "client_email": "hello@norrstudio.example.com",
+    "invoice_number": "INV-1004",
+    "amount": 2600.0,
+    "disputed_amount": 600.0,
+    "undisputed_amount": 2000.0,
+    "currency": "USD",
+    "issued_date": "2026-07-01",
+    "due_date": "2026-07-15",
+    "status": "disputed",
+    "exception_type": "dispute_partial",
+    "contact_count": 1,
+    "last_contact_date": "2026-07-30",
+    "escalation_level": 0,
+    "history": [
+      {
+        "date": "2026-07-01",
+        "event": "invoice sent"
+      },
+      {
+        "date": "2026-07-15",
+        "event": "became overdue"
+      },
+      {
+        "date": "2026-07-30",
+        "event": "[email] client replied: says two revision rounds were already included in the quote, disputes the $600 revision line item; no objection to the remaining $2,000"
+      }
+    ]
+  },
+  "inv_1005": {
+    "loop_id": "inv_1005",
+    "parent_loop_id": null,
+    "client_id": "cl_ambit",
+    "client_name": "Ambit Robotics",
+    "client_email": "finance@ambitrobotics.example.com",
+    "invoice_number": "INV-1005",
+    "amount": 7300.0,
+    "disputed_amount": 0.0,
+    "undisputed_amount": 7300.0,
+    "currency": "USD",
+    "issued_date": "2026-08-03",
+    "due_date": "2026-08-17",
+    "status": "overdue",
+    "exception_type": "fresh_overdue",
+    "contact_count": 0,
+    "last_contact_date": null,
+    "escalation_level": 0,
+    "history": [
+      {
+        "date": "2026-08-03",
+        "event": "invoice sent"
+      },
+      {
+        "date": "2026-08-17",
+        "event": "became overdue, no contact yet"
+      }
+    ]
+  },
+  "inv_1006": {
+    "loop_id": "inv_1006",
+    "parent_loop_id": null,
+    "client_id": "cl_torrey",
+    "client_name": "Torrey & Vance Consulting",
+    "client_email": "payables@torreyvance.example.com",
+    "invoice_number": "INV-1006",
+    "amount": 18500.0,
+    "disputed_amount": 18500.0,
+    "undisputed_amount": 0.0,
+    "currency": "USD",
+    "issued_date": "2026-06-20",
+    "due_date": "2026-07-04",
+    "status": "disputed",
+    "exception_type": "dispute_full",
+    "contact_count": 2,
+    "last_contact_date": "2026-08-01",
+    "escalation_level": 0,
+    "history": [
+      {
+        "date": "2026-06-20",
+        "event": "invoice sent"
+      },
+      {
+        "date": "2026-07-04",
+        "event": "became overdue"
+      },
+      {
+        "date": "2026-07-18",
+        "event": "[email] sent reminder #1"
+      },
+      {
+        "date": "2026-08-01",
+        "event": "[email] client disputes the entire scope of work, says project was never formally approved"
+      }
+    ]
+  },
+  "inv_1007": {
+    "loop_id": "inv_1007",
+    "parent_loop_id": null,
+    "client_id": "cl_fernwood",
+    "client_name": "Fernwood Realty",
+    "client_email": "accounts@fernwoodrealty.example.com",
+    "invoice_number": "INV-1007",
+    "amount": 3100.0,
+    "disputed_amount": 0.0,
+    "undisputed_amount": 3100.0,
+    "currency": "USD",
+    "issued_date": "2026-06-01",
+    "due_date": "2026-06-15",
+    "status": "closed",
+    "exception_type": "resolved",
+    "contact_count": 1,
+    "last_contact_date": "2026-07-05",
+    "escalation_level": 0,
+    "history": [
+      {
+        "date": "2026-06-01",
+        "event": "invoice sent"
+      },
+      {
+        "date": "2026-06-15",
+        "event": "became overdue"
+      },
+      {
+        "date": "2026-06-20",
+        "event": "[email] sent friendly reminder #1"
+      },
+      {
+        "date": "2026-07-05",
+        "event": "[email] client confirmed payment sent"
+      },
+      {
+        "date": "2026-07-06",
+        "event": "status -> closed: payment verified"
+      }
+    ]
   }
 }

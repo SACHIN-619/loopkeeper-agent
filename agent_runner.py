@@ -1,90 +1,80 @@
 """
-agent_runner.py — Reusable agent execution core.
-
-ONE function: run_agent_cycle(trigger)
-
-Called by:
-  - runner.py HTTP endpoint (POST /agent/run)
-  - Cloud Scheduler (via that same HTTP endpoint)
-  - Local testing / curl
-  - Future webhook
-
-The HTTP layer never contains business logic. This file never knows
-who called it — it only knows how to run the agent and record what happened.
-
-Usage:
-    from loop_keeper.agent_runner import run_agent_cycle
-    result = run_agent_cycle(trigger="scheduler")
+agent_runner.py — Reusable agent execution core with multi-tenant user_id scope.
 """
 
 import os
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
-# ---------------------------------------------------------------------------
-# Lazy ADK import — only needed when the agent actually runs.
-# This lets the module import safely even without google-adk installed
-# (e.g., in pure frontend-only local dev).
-# ---------------------------------------------------------------------------
+
+def _get_store():
+    if os.getenv("LOOPKEEPER_BACKEND") == "firestore":
+        try:
+            import store_firestore as store
+        except ImportError:
+            from loop_keeper import store_firestore as store
+        return store
+    else:
+        try:
+            import store
+        except ImportError:
+            from loop_keeper import store
+        return store
+
 
 def _get_runner():
-    """Return a fresh ADK InMemoryRunner for the root agent."""
     from google.adk.runners import InMemoryRunner
-    from loop_keeper.agent import root_agent
+    try:
+        from agent import root_agent
+    except ImportError:
+        from loop_keeper.agent import root_agent
     return InMemoryRunner(agent=root_agent)
 
 
-def run_agent_cycle(trigger: str = "manual", user_id: str | None = None) -> dict:
+def run_agent_cycle(trigger: str = "manual", user_id: Optional[str] = None) -> dict:
     """
     Execute one full agent cycle: observe → reason → decide → act → record.
 
-    trigger: one of 'scheduler' | 'manual' | 'gmail_event' | 'demo'
-             stored in the run log so every execution is traceable.
+    trigger: 'scheduler' | 'manual' | 'gmail_event' | 'demo'
     user_id: optional tenant/owner UID for isolated execution context.
-
-    Returns a structured RunResult dict that runner.py can return as JSON
-    and store.save_run_log() can persist.
     """
-    # -----------------------------------------------------------------
-    # 0. Pre-run: deterministic promise check (no LLM involved).
-    #    This runs BEFORE the agent so broken promises are already
-    #    surfaced when the agent reads loop state.
-    # -----------------------------------------------------------------
-    # Import store dynamically so LOOPKEEPER_BACKEND is already set
-    if os.getenv("LOOPKEEPER_BACKEND") == "firestore":
-        from loop_keeper import store_firestore as store
-    else:
-        from loop_keeper import store
+    # 0. Set current user_id in thread context for ADK tools
+    try:
+        from agent import set_current_user_id
+    except ImportError:
+        from loop_keeper.agent import set_current_user_id
 
+    set_current_user_id(user_id)
+
+    store = _get_store()
     started_at = datetime.now(timezone.utc)
     run_id     = str(uuid.uuid4())[:8]
 
-    # Deterministic broken-promise detection (pure date math, no LLM)
-    broken_loops = store.check_broken_promises()
+    # Deterministic broken-promise detection for target user_id
+    broken_loops = store.check_broken_promises(user_id=user_id)
 
-    # -----------------------------------------------------------------
-    # 0.5. Gmail ingestion — fetch new replies and log them into loops
-    #      BEFORE the agent reasons, so it sees the latest evidence.
-    #      Gated behind LOOPKEEPER_EMAIL_MODE=gmail — silently skipped
-    #      in sandbox mode so local dev never needs real credentials.
-    # -----------------------------------------------------------------
+    # 0.5. Gmail ingestion — fetch new replies for target user_id
     gmail_replies_processed = 0
-    gmail_error: str | None = None
+    gmail_error: Optional[str] = None
 
     if os.getenv("LOOPKEEPER_EMAIL_MODE") == "gmail":
         try:
-            from loop_keeper.gmail_client import list_new_replies
-            new_replies = list_new_replies(query="newer_than:1d label:inbox")
+            try:
+                from gmail_client import list_new_replies
+            except ImportError:
+                from loop_keeper.gmail_client import list_new_replies
+
+            new_replies = list_new_replies(query="newer_than:1d label:inbox", user_id=user_id)
             loops_by_email = {
-                store.get_loop(l["loop_id"]).get("client_email", "").lower(): l["loop_id"]
-                for l in store.list_loops(include_closed=False)
-                if store.get_loop(l["loop_id"])
+                (store.get_loop(l["loop_id"], user_id=user_id) or {}).get("client_email", "").lower(): l["loop_id"]
+                for l in store.list_loops(include_closed=False, user_id=user_id)
+                if store.get_loop(l["loop_id"], user_id=user_id)
             }
             for reply in new_replies:
                 sender = reply.get("from", "").lower()
                 msg_id = reply.get("message_id", "")
                 snippet = reply.get("snippet", "")
-                # Match sender email to a known client loop
                 matched_loop_id = None
                 for email_addr, loop_id in loops_by_email.items():
                     if email_addr and email_addr in sender:
@@ -95,98 +85,67 @@ def run_agent_cycle(trigger: str = "manual", user_id: str | None = None) -> dict
                         matched_loop_id,
                         message_id=msg_id,
                         summary=f"[gmail] {reply.get('from','')} replied: {snippet[:200]}",
+                        user_id=user_id,
                     )
                     if result and "error" not in result:
                         gmail_replies_processed += 1
         except Exception as e:
             gmail_error = str(e)
+            print(f"[agent_runner] Gmail ingestion warning for user '{user_id}': {e}")
 
-    # -----------------------------------------------------------------
-    # 1. Run the ADK agent — this is where observe/reason/decide/act happens
-    # -----------------------------------------------------------------
-    decisions: list[dict] = []
-    agent_error: str | None = None
+    # 1. Execute ADK Reasoning Agent
+    loops_before = store.list_loops(include_closed=False, user_id=user_id)
+    adk_result = None
+    adk_error: Optional[str] = None
 
     try:
-        runner  = _get_runner()
-        session = runner.create_session(user_id="system", session_id=run_id)
-        
-        # Kick off the agent with a standard prompt — the agent's own
-        # instruction in agent.py defines the full protocol; we just start it.
-        events = runner.run(
-            user_id="system",
-            session_id=run_id,
-            new_message="Run your full cycle now. Check for new replies, process every open loop in priority order, and call get_resolution_report() at the end.",
-        )
-
-        # Collect tool-call decisions from the event stream
-        for event in events:
-            if hasattr(event, "actions") and event.actions:
-                for action in event.actions:
-                    if hasattr(action, "tool_use"):
-                        tu = action.tool_use
-                        decisions.append({
-                            "tool":    tu.name if hasattr(tu, "name") else str(tu),
-                            "loop_id": _extract_loop_id(tu),
-                        })
-            # Also capture final text response as run summary
-            if hasattr(event, "text") and event.text:
-                decisions.append({"summary": event.text[:400]})
-
+        runner = _get_runner()
+        try:
+            adk_result = runner.run(
+                new_message=(
+                    f"Run complete cycle for user_id='{user_id or 'default'}'. "
+                    f"Check new replies, work all open loops in priority order, "
+                    f"and report resolution summary."
+                )
+            )
+        except TypeError:
+            adk_result = runner.run(
+                user_id=user_id or "system",
+                session_id=run_id,
+                new_message=(
+                    f"Run complete cycle for user_id='{user_id or 'default'}'. "
+                    f"Check new replies, work all open loops in priority order, "
+                    f"and report resolution summary."
+                )
+            )
     except Exception as e:
-        agent_error = str(e)
+        adk_error = str(e)
+        print(f"[agent_runner] ADK Agent Execution Notice: {e}")
 
-    # -----------------------------------------------------------------
-    # 2. Build the structured run log entry
-    # -----------------------------------------------------------------
-    completed_at  = datetime.now(timezone.utc)
-    duration_ms   = int((completed_at - started_at).total_seconds() * 1000)
-
-    # Count outcomes from decisions list
-    emails_sent        = sum(1 for d in decisions if d.get("tool") == "send_followup")
-    approvals_created  = sum(1 for d in decisions if d.get("tool") == "save_draft")
-    resolved           = sum(1 for d in decisions if d.get("tool") == "verify_and_close")
-    plans_changed      = len(broken_loops)  # deterministic re-plans
+    # 2. Record run summary
+    completed_at = datetime.now(timezone.utc)
+    duration_s   = round((completed_at - started_at).total_seconds(), 2)
+    loops_after  = store.list_loops(include_closed=False, user_id=user_id)
 
     run_record = {
-        "run_id":                run_id,
-        "trigger":               trigger,
-        "started_at":            started_at.isoformat(),
-        "completed_at":          completed_at.isoformat(),
-        "duration_ms":           duration_ms,
-        "status":                "failed" if agent_error else "completed",
-        "error":                 agent_error,
-        "loops_scanned":         len(store.list_loops(include_closed=False)),
-        "broken_promises":       len(broken_loops),
-        "plans_changed":         plans_changed,
-        "emails_sent":           emails_sent,
-        "approvals_created":     approvals_created,
-        "resolved":              resolved,
-        "failures":              1 if agent_error else 0,
-        "decisions":             decisions[:50],  # cap at 50 for storage
-        "broken_promise_loops":  [l.get("loop_id") for l in broken_loops],
-        "gmail_replies_ingested": gmail_replies_processed,
-        "gmail_error":           gmail_error,
-        "sources": {
-            "gmail":     os.getenv("LOOPKEEPER_EMAIL_MODE") == "gmail",
-            "firestore": os.getenv("LOOPKEEPER_BACKEND") == "firestore",
-            "policy":    True,
+        "run_id":                  run_id,
+        "trigger":                 trigger,
+        "user_id":                 user_id,
+        "started_at":              started_at.isoformat(),
+        "completed_at":            completed_at.isoformat(),
+        "duration_seconds":        duration_s,
+        "status":                  "failed" if adk_error else "completed",
+        "loops_scanned":           len(loops_before),
+        "broken_promises_found":  len(broken_loops),
+        "gmail_replies_processed": gmail_replies_processed,
+        "gmail_error":             gmail_error,
+        "adk_error":               adk_error,
+        "outcome": {
+            "open_before": len(loops_before),
+            "open_after":  len(loops_after),
+            "resolved_this_run": max(0, len(loops_before) - len(loops_after)),
         },
     }
 
-    # Persist the run log
-    try:
-        store.save_run_log(run_record)
-    except Exception as e:
-        run_record["log_save_error"] = str(e)
-
+    store.save_run_log(run_record, user_id=user_id)
     return run_record
-
-
-def _extract_loop_id(tool_use) -> str | None:
-    """Best-effort extraction of loop_id from a tool call's input."""
-    try:
-        inp = tool_use.input if hasattr(tool_use, "input") else {}
-        return inp.get("loop_id")
-    except Exception:
-        return None

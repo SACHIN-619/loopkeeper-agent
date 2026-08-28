@@ -1,5 +1,5 @@
 """
-agent.py — LoopKeeper's root agent.
+agent.py — LoopKeeper's root agent with context-scoped user_id tenant isolation.
 
 Owns every unpaid invoice for a small agency until it's resolved:
 detects, investigates the cause, decides the next move, acts within its
@@ -9,14 +9,38 @@ Run it locally with: adk web   (from the folder above loop_keeper/)
 """
 
 import os
+import contextvars
+from typing import Optional
 from google.adk import Agent
-from . import policy
+
+try:
+    from . import policy
+except ImportError:
+    import policy
 
 # Dynamically route backend storage based on environment configuration
 if os.getenv("LOOPKEEPER_BACKEND") == "firestore":
-    from . import store_firestore as store
+    try:
+        from . import store_firestore as store
+    except ImportError:
+        import store_firestore as store
 else:
-    from . import store
+    try:
+        from . import store
+    except ImportError:
+        import store
+
+# Thread-safe user_id context variable for multi-tenant isolation
+_user_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("user_id_var", default=None)
+
+
+def set_current_user_id(uid: Optional[str]):
+    _user_id_var.set(uid)
+
+
+def get_current_user_id() -> Optional[str]:
+    return _user_id_var.get()
+
 
 # ---------------------------------------------------------------------------
 # TOOLS
@@ -31,14 +55,17 @@ def check_for_new_replies() -> dict:
     if os.getenv("LOOPKEEPER_EMAIL_MODE") != "gmail":
         return {"checked": False, "reason": "LOOPKEEPER_EMAIL_MODE is not 'gmail'"}
     from . import gmail_client
-    replies = gmail_client.list_new_replies()
-    open_loops = store.list_loops(include_closed=False)
+    uid = get_current_user_id()
+    replies = gmail_client.list_new_replies(user_id=uid)
+    open_loops = store.list_loops(include_closed=False, user_id=uid)
     matched = []
     for reply in replies:
         sender_email = reply["from"].split("<")[-1].strip(">").strip().lower()
         for loop in open_loops:
-            if loop["client_email"].lower() == sender_email:
-                store.log_incoming_reply(loop["loop_id"], reply["message_id"], f"{reply['subject']}: {reply['snippet']}")
+            if loop.get("client_email", "").lower() == sender_email:
+                store.log_incoming_reply(
+                    loop["loop_id"], reply["message_id"], f"{reply['subject']}: {reply['snippet']}", user_id=uid
+                )
                 matched.append({"loop_id": loop["loop_id"], "from": sender_email})
     return {"checked": True, "messages_seen": len(replies), "matched_to_loops": matched}
 
@@ -47,27 +74,30 @@ def _deliver_email(to: str, subject: str, body: str) -> None:
     """The one place a message actually leaves the building, or doesn't.
     Defaults to print-only — flip LOOPKEEPER_EMAIL_MODE=gmail in .env
     when ready to go live."""
+    uid = get_current_user_id()
     if os.getenv("LOOPKEEPER_EMAIL_MODE") == "gmail":
         from . import gmail_client
-        gmail_client.send_email(to, subject, body)
+        gmail_client.send_email(to, subject, body, user_id=uid)
         print(f"[GMAIL — ACTUALLY SENT] to {to} | {subject}")
     else:
         print(f"[SENT — print mode] to {to} | {subject}\n{body}")
 
 
 def list_open_loops(sort_by_priority: bool = True) -> list[dict]:
-    """Return every open (unresolved) invoice-chasing loop.
+    """Return every open (unresolved) invoice-chasing loop for the active user.
 
     Call this after checking for new replies. With sort_by_priority=True (the default)
     loops come back ranked highest financial-impact-and-urgency first —
     work through them in that order, not oldest-first.
     """
-    return store.list_loops(include_closed=False, sort_by_priority=sort_by_priority)
+    uid = get_current_user_id()
+    return store.list_loops(include_closed=False, sort_by_priority=sort_by_priority, user_id=uid)
 
 
 def get_loop_detail(loop_id: str) -> dict:
     """Full detail and history for one loop, including its client_id."""
-    loop = store.get_loop(loop_id)
+    uid = get_current_user_id()
+    loop = store.get_loop(loop_id, user_id=uid)
     return loop if loop else {"error": f"no loop found with id {loop_id}"}
 
 
@@ -77,7 +107,8 @@ def get_client_profile(client_id: str) -> dict:
     deciding tone — a chronic slow payer at day 5 is not the same
     situation as a normally-fast payer at day 5.
     """
-    client = store.get_client(client_id)
+    uid = get_current_user_id()
+    client = store.get_client(client_id, user_id=uid)
     return client if client else {"error": f"no client found with id {client_id}"}
 
 
@@ -89,7 +120,8 @@ def check_action_tier(loop_id: str) -> dict:
     it tells you whether you can send directly, need to draft-and-wait,
     or shouldn't act at all.
     """
-    loop = store.get_loop(loop_id)
+    uid = get_current_user_id()
+    loop = store.get_loop(loop_id, user_id=uid)
     if not loop:
         return {"error": f"no loop found with id {loop_id}"}
     tier = policy.required_tier(loop)
@@ -110,7 +142,8 @@ def send_followup(loop_id: str, subject: str, body: str) -> dict:
         one-tap approval, and tells you that's what happened.
       - Tier 3: refuses outright. Call escalate_to_human() instead.
     """
-    loop = store.get_loop(loop_id)
+    uid = get_current_user_id()
+    loop = store.get_loop(loop_id, user_id=uid)
     if not loop:
         return {"error": f"no loop found with id {loop_id}"}
 
@@ -127,28 +160,29 @@ def send_followup(loop_id: str, subject: str, body: str) -> dict:
         }
 
     if tier == 2:
-        result = store.save_draft(loop_id, subject, body)
+        result = store.save_draft(loop_id, subject, body, user_id=uid)
         print(f"\n{'=' * 60}\n[DRAFTED — AWAITING YOUR APPROVAL] {loop['client_email']}")
         print(f"Subject: {subject}\nReason held: {policy.explain_tier(loop)}")
         print(f"---\n{body}\n{'=' * 60}\n")
         return {"drafted": True, "tier": 2, "loop": result}
 
-    # Tier 1 - dispatch email via delivery helper
     _deliver_email(loop['client_email'], subject, body)
-    return {"sent": True, "tier": 1, "loop": store.record_contact(loop_id, "email", f"sent: {subject}")}
+    return {"sent": True, "tier": 1, "loop": store.record_contact(loop_id, f"sent: {subject}", "email", user_id=uid)}
 
 
 def list_pending_approvals() -> list[dict]:
     """Everything currently drafted and waiting on the owner's OK."""
-    return store.list_pending_approvals()
+    uid = get_current_user_id()
+    return store.list_pending_approvals(user_id=uid)
 
 
 def send_pending_draft(loop_id: str) -> dict:
     """The human just approved a Tier-2 draft — send it now."""
-    result = store.send_draft(loop_id)
-    if "error" in result:
-        return result
-    _deliver_email(result['client_email'], result['subject'], result['body'])
+    uid = get_current_user_id()
+    result = store.send_draft(loop_id, user_id=uid)
+    if not result or "error" in result:
+        return result or {"error": "Failed to send draft"}
+    _deliver_email(result.get('client_email', ''), result.get('subject', ''), result.get('body', ''))
     return result
 
 
@@ -156,21 +190,24 @@ def split_disputed_amount(loop_id: str, disputed_amount: float, reason: str) -> 
     """Separate a partially disputed invoice into two independent loops
     instead of freezing the whole amount.
     """
-    return store.split_loop(loop_id, disputed_amount, reason)
+    uid = get_current_user_id()
+    return store.split_loop(loop_id, disputed_amount, reason, user_id=uid)
 
 
 def update_loop_status(loop_id: str, new_status: str, exception_type: str, note: str) -> dict:
     """Update a loop's status and exception_type after new information."""
-    return store.update_status(loop_id, new_status, note, exception_type)
+    uid = get_current_user_id()
+    return store.update_status(loop_id, new_status, note, exception_type, user_id=uid)
 
 
 def escalate_to_human(loop_id: str, reason: str) -> dict:
     """Flag a loop for the owner's direct attention — no draft, no send."""
-    loop = store.get_loop(loop_id)
+    uid = get_current_user_id()
+    loop = store.get_loop(loop_id, user_id=uid)
     if not loop:
         return {"error": f"no loop found with id {loop_id}"}
     print(f"\n🚨 ESCALATION NEEDED — {loop['client_name']} ({loop_id})\n   Reason: {reason}\n")
-    return store.escalate(loop_id, reason)
+    return store.escalate(loop_id, reason, user_id=uid)
 
 
 def verify_and_close(loop_id: str, verification_note: str) -> dict:
@@ -181,7 +218,8 @@ def verify_and_close(loop_id: str, verification_note: str) -> dict:
     and payment details have been verified in history. The tool enforces
     strict verification rules to ensure pay confirmation actually exists.
     """
-    return store.verify_and_close(loop_id, verification_note, by_agent=True)
+    uid = get_current_user_id()
+    return store.verify_and_close(loop_id, verification_note, user_id=uid)
 
 
 def detect_and_store_promise(loop_id: str, promised_date: str, source_text: str) -> dict:
@@ -201,7 +239,8 @@ def detect_and_store_promise(loop_id: str, promised_date: str, source_text: str)
       - "Payment goes out on the 28th."
       - "Our accounting will process this next week."
     """
-    return store.store_promise(loop_id, promised_date, source_text)
+    uid = get_current_user_id()
+    return store.store_promise(loop_id, promised_date, source_text, user_id=uid)
 
 
 def check_promise_status(loop_id: str) -> dict:
@@ -222,7 +261,8 @@ def check_promise_status(loop_id: str) -> dict:
     evidence check are pure logic in store.py.
     """
     from datetime import date as _date
-    loop = store.get_loop(loop_id)
+    uid = get_current_user_id()
+    loop = store.get_loop(loop_id, user_id=uid)
     if not loop:
         return {"error": f"no loop found with id {loop_id}"}
 
@@ -238,19 +278,17 @@ def check_promise_status(loop_id: str) -> dict:
     today = _date.today()
     days_remaining = (promise_date - today).days
 
-    # Check for payment evidence
     payment_kw = ["paid", "pay", "sent", "wire", "transfer", "check", "receipt", "confirm"]
     has_payment = any(
         any(kw in h["event"].lower() for kw in payment_kw)
         for h in loop.get("history", [])
-        if "[INCOMING REPLY]" in h.get("event", "") or "[email] client replied" in h.get("event", "")
+        if "[INCOMING REPLY]" in h.get("event", "").upper() or "[email] client replied" in h.get("event", "")
     )
 
     if has_payment:
         return {"status": "kept", "promise_date": promise_raw, "days_remaining": days_remaining}
     if today <= promise_date:
         return {"status": "pending", "promise_date": promise_raw, "days_remaining": days_remaining}
-    # Date passed, no payment
     return {"status": "broken", "promise_date": promise_raw, "days_overdue": abs(days_remaining)}
 
 
@@ -259,7 +297,8 @@ def get_resolution_report() -> dict:
     what's broken down by cause, and what's broken down by authority tier.
     Call this last, every run.
     """
-    return store.get_resolution_report()
+    uid = get_current_user_id()
+    return store.get_resolution_report(user_id=uid)
 
 
 # ---------------------------------------------------------------------------
