@@ -50,7 +50,8 @@ export default function AppShell() {
 
   // Data source: sandbox in demo mode, real user data in live mode
   useEffect(() => {
-    if (isDemoMode) {
+    const wantSample = sessionStorage.getItem("lk_load_sample_data") === "true";
+    if (isDemoMode || wantSample) {
       setLoops(LOOPS);
       setResolvedLoops(RESOLVED_LOOPS);
       setIsFallback(true);

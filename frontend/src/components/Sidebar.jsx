@@ -30,7 +30,7 @@ export default function Sidebar({ loops = [], isSandbox = false }) {
   const [isHovered, setIsHovered] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isDemoMode, exitDemoMode } = useAuth();
+  const { user, isDemoMode, exitDemoMode, logout } = useAuth();
 
   // Sidebar is open if either user has not collapsed it OR is hovering while minimized
   const isExpanded = !collapsed || isHovered;
@@ -43,11 +43,8 @@ export default function Sidebar({ loops = [], isSandbox = false }) {
   const avatarLetter = displayName[0]?.toUpperCase() || "L";
 
   const handleSignOut = async () => {
-    if (isFirebaseConfigured && !isDemoMode) {
-      await signOut();
-    }
-    sessionStorage.removeItem("lk_demo_mode");
-    navigate("/login");
+    await logout();
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -95,27 +92,34 @@ export default function Sidebar({ loops = [], isSandbox = false }) {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={exitDemoMode}
-                title="Click to Exit Sandbox Demo Mode and return to your Live Account"
+                title="Click to exit Demo Sandbox Mode and go back to Real Mode"
                 style={{
-                  padding: "8px 12px", borderRadius: 8,
-                  background: "rgba(245,158,11,0.12)",
-                  border: "1px solid rgba(245,158,11,0.4)",
+                  padding: "10px 14px", borderRadius: 9,
+                  background: "rgba(245,158,11,0.16)",
+                  border: "1.5px solid rgba(245,158,11,0.6)",
                   display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                  cursor: "pointer", boxShadow: "0 0 16px rgba(245,158,11,0.25)",
+                  cursor: "pointer",
+                  boxShadow: "0 0 20px rgba(245,158,11,0.35)",
+                  animation: "pulse 1.2s infinite ease-in-out",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{
-                    width: 8, height: 8, borderRadius: "50%",
+                    width: 9, height: 9, borderRadius: "50%",
                     background: "#F59E0B",
-                    animation: "pulse 1s infinite alternate",
-                    boxShadow: "0 0 8px #F59E0B",
+                    boxShadow: "0 0 10px #F59E0B",
+                    display: "inline-block",
                   }} />
-                  <span style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: "0.08em", fontWeight: 700, color: "#F59E0B" }}>
-                    DEMO MODE ACTIVE
-                  </span>
+                  <div>
+                    <div style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: "0.08em", fontWeight: 800, color: "#F59E0B", textTransform: "uppercase" }}>
+                      DEMO MODE ACTIVE
+                    </div>
+                    <div style={{ fontFamily: f.body, fontSize: 10, color: "var(--c-text-2)", textAlign: "left" }}>
+                      Click to Go Back to Real Mode
+                    </div>
+                  </div>
                 </div>
-                <span style={{ fontFamily: f.mono, fontSize: 9, color: "var(--c-text)", background: "rgba(255,255,255,0.1)", borderRadius: 4, padding: "1px 5px" }}>
+                <span style={{ fontFamily: f.mono, fontSize: 9, fontWeight: 700, color: "var(--c-text-inv)", background: "#F59E0B", borderRadius: 4, padding: "2px 6px" }}>
                   EXIT ✕
                 </span>
               </motion.button>

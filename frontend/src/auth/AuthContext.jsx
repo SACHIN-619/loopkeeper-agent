@@ -3,7 +3,7 @@
  * Handles: Firebase auth, local dev auth, explicit sandbox demo mode.
  */
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { onAuthChange, checkRedirectResult, isFirebaseConfigured, signOut as firebaseSignOut } from "./firebaseAuth.js";
+import { onAuthChange, checkRedirectResult, isFirebaseConfigured, signOut as firebaseSignOut, auth } from "./firebaseAuth.js";
 
 export const AuthContext = createContext({
   user: null,
@@ -12,6 +12,7 @@ export const AuthContext = createContext({
   isFirebaseConfigured: false,
   loginAsLocalUser: () => {},
   enterDemoMode: () => {},
+  exitDemoMode: () => {},
   logout: () => {},
 });
 
@@ -53,7 +54,8 @@ export function AuthProvider({ children }) {
       });
 
       const unsubscribe = onAuthChange((firebaseUser) => {
-        if (firebaseUser) {
+        const isDemo = sessionStorage.getItem("lk_demo_mode") === "true";
+        if (firebaseUser && !isDemo) {
           setUser(firebaseUser);
           setIsDemoMode(false);
         }
@@ -85,15 +87,20 @@ export function AuthProvider({ children }) {
   const exitDemoMode = () => {
     sessionStorage.removeItem("lk_demo_mode");
     setIsDemoMode(false);
-    const localUserRaw = sessionStorage.getItem("lk_local_user");
-    if (localUserRaw) {
-      try {
-        setUser(JSON.parse(localUserRaw));
-      } catch {
+
+    if (isFirebaseConfigured && auth.currentUser) {
+      setUser(auth.currentUser);
+    } else {
+      const localUserRaw = sessionStorage.getItem("lk_local_user");
+      if (localUserRaw) {
+        try {
+          setUser(JSON.parse(localUserRaw));
+        } catch {
+          setUser(null);
+        }
+      } else {
         setUser(null);
       }
-    } else {
-      setUser(null);
     }
   };
 
