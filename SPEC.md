@@ -144,7 +144,7 @@ it up on its next run, same as it will once Gmail is real.
 ## 10. Tech stack — confirmed, verified working
 
 - Python + Google ADK 2.7.0 (installed and smoke-tested already)
-- Gemini 3.5 Flash for all reasoning by default; Pro only as a later
+- Gemini 3.7 Flash for all reasoning by default (`gemini-3.7-flash`); Pro only as a later
   swap if one specific step needs it
 - Firestore for the Open Loop Registry — Day 2 swap from the current
   JSON store, same interface
