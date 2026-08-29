@@ -1,0 +1,26 @@
+steps:
+  # 1. Deploy Backend API to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'loopkeeper-api'
+      - '--source=.'
+      - '--region=asia-south1'
+      - '--allow-unauthenticated'
+      - '--platform=managed'
+      - '--set-env-vars'
+      - 'LOOPKEEPER_BACKEND=firestore,LOOPKEEPER_EMAIL_MODE=print'
+
+  # 2. Deploy Frontend to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'loopkeeper-frontend'
+      - '--source=frontend/'
+      - '--region=asia-south1'
+      - '--allow-unauthenticated'
+      - '--platform=managed'

@@ -1,0 +1,47 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Build & Deploy Backend and Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Google Cloud Authentication
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Backend API to Cloud Run
+        run: |
+          gcloud run deploy loopkeeper-api \
+            --source . \
+            --region asia-south1 \
+            --allow-unauthenticated \
+            --set-env-vars LOOPKEEPER_BACKEND=firestore,LOOPKEEPER_EMAIL_MODE=print,GOOGLE_API_KEY="${{ secrets.GOOGLE_API_KEY }}" \
+            --platform managed
+
+      - name: Get Backend Service URL
+        id: backend
+        run: |
+          URL=$(gcloud run services describe loopkeeper-api --region asia-south1 --format='value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Deploy Frontend to Cloud Run
+        run: |
+          gcloud run deploy loopkeeper-frontend \
+            --source frontend/ \
+            --region asia-south1 \
+            --allow-unauthenticated \
+            --set-env-vars VITE_CLOUD_RUN_URL="${{ steps.backend.outputs.url }}" \
+            --platform managed
