@@ -140,10 +140,11 @@ def index():
 
 
 # ---------------------------------------------------------------------------
-# POST /agent/run (Authenticated)
+# POST /agent/run & POST /run (Authenticated)
 # ---------------------------------------------------------------------------
 
 @app.post("/agent/run")
+@app.post("/run")
 @require_auth
 def agent_run():
     req_data = request.json if request.is_json else {}
@@ -159,6 +160,35 @@ def agent_run():
     run_agent_cycle = _get_run_agent_cycle()
     result = run_agent_cycle(trigger=trigger, user_id=user_id)
     return jsonify(result), 200
+
+
+# ---------------------------------------------------------------------------
+# POST /verify_close (Authenticated)
+# ---------------------------------------------------------------------------
+
+@app.post("/verify_close")
+@require_auth
+def verify_close():
+    req_data = request.json if request.is_json else {}
+    loop_id  = req_data.get("loop_id") or req_data.get("loopId")
+    note     = req_data.get("note", "Manual user resolution")
+    user_id  = getattr(request, "user_id", None) or req_data.get("user_id") or req_data.get("userId")
+
+    if not loop_id:
+        return jsonify({"error": "loop_id is required"}), 400
+
+    store = _get_store()
+    updated = store.update_status(
+        loop_id=loop_id,
+        status="closed",
+        reason=f"VERIFIED & CLOSED: {note}",
+        exception_type="resolved",
+        user_id=user_id
+    )
+    if not updated:
+        return jsonify({"error": f"Loop '{loop_id}' not found or access denied."}), 440
+    return jsonify({"status": "closed", "loop": updated}), 200
+
 
 
 # ---------------------------------------------------------------------------
