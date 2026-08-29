@@ -18,4 +18,4 @@ COPY . /app/
 EXPOSE 8080
 
 # Run Gunicorn WSGI server on port 8080
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--threads", "4", "runner:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--threads", "4", "--timeout", "120", "runner:app"]
