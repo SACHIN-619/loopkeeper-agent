@@ -307,7 +307,7 @@ def get_resolution_report() -> dict:
 
 root_agent = Agent(
     name="loop_keeper_agent",
-    model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+    model=os.getenv("GEMINI_MODEL", "gemini-3.7-flash"),
     description=(
         "Owns every unpaid invoice for a small agency until it's resolved — "
         "investigates why each one is stuck, acts within a defined authority "

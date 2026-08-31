@@ -3,7 +3,7 @@
 > An AI agent that observes invoices, tracks client communication across Gmail/SMS/WhatsApp, reasons over relationship history, makes autonomous follow-up decisions, and replans when new evidence arrives — all while the browser is closed.
 
 [![Built with Google ADK](https://img.shields.io/badge/Google%20ADK-2.7.1-blue)](https://google.github.io/adk-docs/)
-[![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-green)](https://ai.google.dev/)
+[![Gemini](https://img.shields.io/badge/Gemini-3.7%20Flash-green)](https://ai.google.dev/)
 [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-ready-orange)](https://cloud.google.com/run)
 [![Firestore](https://img.shields.io/badge/Firestore-production-yellow)](https://firebase.google.com/docs/firestore)
 
@@ -34,7 +34,7 @@ Most invoices don't get chased — not because the freelancer forgot, but becaus
 | Layer | Technology |
 |---|---|
 | AI Agent | [Google ADK](https://google.github.io/adk-docs/) 2.7.1 |
-| Language Model | Gemini 2.5 Flash (`gemini-2.5-flash` via `GOOGLE_API_KEY`) |
+| Language Model | Gemini 3.7 Flash (`gemini-3.7-flash` via `GOOGLE_API_KEY`) |
 | Invoice Extraction | Gemini Vision API (PDF + image) |
 | Backend | Python 3.13 + Flask |
 | Production Persistence | Google Firestore |
