@@ -25,66 +25,7 @@ Most invoices don't get chased — not because the freelancer forgot, but becaus
 
 ## Architecture
 
-```
-                        ┌─────────────────────────────────────────┐
-                        │           INPUT CHANNELS                │
-                        │                                         │
-                        │  📄 Invoice PDF → Gemini Vision Extract │
-                        │  ✉  Gmail → list_new_replies()          │
-                        │  📱 SMS → POST /webhooks/sms  (Twilio)  │
-                        │  💬 WhatsApp → POST /webhooks/whatsapp  │
-                        │  🖊  Add Invoice form (manual)           │
-                        └───────────────┬─────────────────────────┘
-                                        │ normalize evidence
-                                        ↓
-                        ┌─────────────────────────────────────────┐
-                        │          EVIDENCE ENGINE                │
-                        │                                         │
-                        │  log_incoming_reply()                   │
-                        │  store_promise()                        │
-                        │  check_broken_promises()  ← deterministic│
-                        └───────────────┬─────────────────────────┘
-                                        │ updated loop state
-                                        ↓
-          ┌─────────────────────────────────────────────────────────────┐
-          │                    LOOPKEEPER AGENT                        │
-          │                   (Google ADK + Gemini 3.7 Flash)          │
-          │                                                             │
-          │  OBSERVE        REASON          PLAN         ACT           │
-          │  all loops   →  policy.py   →  tier calc →  send/draft    │
-          │  history        client mem     risk score    approve/close  │
-          └─────────────────┬───────────────────────────────────────────┘
-                            │ decision + action result
-                            ↓
-          ┌─────────────────────────────────────────────────────────────┐
-          │                PERSISTENT STATE                             │
-          │                                                             │
-          │  LOOPKEEPER_BACKEND=json      → data/*.json  (sandbox)     │
-          │  LOOPKEEPER_BACKEND=firestore → Firestore    (production)   │
-          └─────────────────┬───────────────────────────────────────────┘
-                            │
-          ┌─────────────────┼───────────────────────────────────────────┐
-          │ HTTP GATEWAY    │   Flask / Cloud Run                        │
-          │                 │                                             │
-          │  POST /agent/run            ← Cloud Scheduler (every hour)  │
-          │  GET  /agent/status         ← Dashboard reads this           │
-          │  GET  /agent/runs           ← Activity page                  │
-          │  POST /agent/inject-evidence ← Sandbox testing               │
-          │  POST /webhooks/sms         ← Twilio                         │
-          │  POST /webhooks/whatsapp    ← Meta Business                  │
-          └─────────────────┬───────────────────────────────────────────┘
-                            │
-                            ↓
-          ┌─────────────────────────────────────────────────────────────┐
-          │               REACT FRONTEND  (Vite)                       │
-          │                                                             │
-          │  Command Center → Agent Status + Priority Loops            │
-          │  Approvals      → Human-review queue with decision trace    │
-          │  Activity Feed  → Timeline + Agent Run log                  │
-          │  Clients        → Relationship Memory                       │
-          │  Add Invoice    → Form + PDF/image upload                   │
-          └─────────────────────────────────────────────────────────────┘
-```
+![LoopKeeper System Architecture](./ARCHITECTURE.PNG)
 
 ---
 

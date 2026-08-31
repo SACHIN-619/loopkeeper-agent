@@ -9,6 +9,8 @@ token.json
 service-account*.json
 *.pem
 *.key
+*.personal.*
+DEPLOYMENT_PERSONAL_GUIDE.txt
 
 # Node dependencies
 node_modules/
