@@ -19,7 +19,7 @@ Endpoints:
 import os
 import sys
 from functools import wraps
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 from flask import Flask, jsonify, request, abort, redirect
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -516,7 +516,8 @@ def webhook_sms():
     loops = store.list_loops(include_closed=False)
     matched = None
     for l in loops:
-        if l.get("client_phone") in sender or sender in l.get("client_phone", ""):
+        phone = l.get("client_phone") or ""
+        if phone and (phone in sender or sender in phone):
             matched = l
             break
 
@@ -552,8 +553,10 @@ def webhook_whatsapp():
                     wa_from = m.get("from")
                     text_body = m.get("text", {}).get("body", "")
                     loops = store.list_loops(include_closed=False)
+                    wa_from_str = str(wa_from) if wa_from else ""
                     for l in loops:
-                        if l.get("client_phone") in str(wa_from):
+                        phone = l.get("client_phone") or ""
+                        if phone and wa_from_str and phone in wa_from_str:
                             store.log_incoming_reply(loop_id=l["loop_id"], message_id=msg_id, summary=f"[WhatsApp] {text_body}")
     except Exception as e:
         print(f"[whatsapp webhook] Parse error: {e}")
