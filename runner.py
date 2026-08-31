@@ -322,6 +322,149 @@ def gmail_disconnect():
 
 
 # ---------------------------------------------------------------------------
+# POST /agent/extract-invoice (Gemini Vision Extraction)
+# ---------------------------------------------------------------------------
+
+@app.post("/agent/extract-invoice")
+@require_auth
+def extract_invoice():
+    req_data = request.json if request.is_json else {}
+    file_b64 = req_data.get("file_b64") or req_data.get("image")
+    mime_type = req_data.get("mime_type", "application/pdf")
+
+    if not file_b64:
+        return jsonify({"error": "file_b64 is required"}), 400
+
+    import base64, json
+    try:
+        file_bytes = base64.b64decode(file_b64.split(",")[-1])
+    except Exception as e:
+        return jsonify({"error": f"Invalid base64 encoding: {e}"}), 400
+
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return jsonify({"error": "GOOGLE_API_KEY not configured on server"}), 500
+
+    prompt = """Analyze this invoice document/image and return JSON with keys:
+    "invoice_number", "client_name", "client_email", "amount" (number), "due_date" (YYYY-MM-DD), "summary".
+    Return ONLY valid raw JSON."""
+
+    try:
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            res = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[genai.types.Part.from_bytes(data=file_bytes, mime_type=mime_type), prompt]
+            )
+            text = res.text
+        except Exception:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            res = model.generate_content([{"mime_type": mime_type, "data": file_bytes}, prompt])
+            text = res.text
+
+        clean = text.strip().strip("```json").strip("```").strip()
+        data = json.loads(clean)
+        return jsonify({"status": "success", "extracted": data}), 200
+    except Exception as e:
+        return jsonify({"error": f"Gemini Vision extraction error: {e}"}), 500
+
+
+# ---------------------------------------------------------------------------
+# POST /agent/inject-evidence (Sandbox / Live Evidence Injection)
+# ---------------------------------------------------------------------------
+
+@app.post("/agent/inject-evidence")
+@require_auth
+def inject_evidence():
+    req_data = request.json if request.is_json else {}
+    loop_id  = req_data.get("loop_id") or req_data.get("loopId")
+    ev_type  = req_data.get("type", "reply") # reply, promise, payment, dispute
+    text     = req_data.get("text", "")
+    sender   = req_data.get("sender", "client")
+    user_id  = getattr(request, "user_id", None) or req_data.get("user_id")
+
+    if not loop_id:
+        return jsonify({"error": "loop_id is required"}), 400
+
+    store = _get_store()
+    msg_id = f"ev_{int(datetime.now(timezone.utc).timestamp())}"
+
+    if ev_type == "promise":
+        promised_date = req_data.get("promised_date", date.today().isoformat())
+        result = store.store_promise(loop_id=loop_id, promised_date=promised_date, text=text, user_id=user_id)
+    elif ev_type == "payment":
+        result = store.verify_and_close(loop_id=loop_id, verify_note=f"Payment verified via evidence: {text}", user_id=user_id)
+    elif ev_type == "dispute":
+        result = store.update_status(loop_id=loop_id, status="open", reason=f"Dispute raised: {text}", exception_type="dispute_full", user_id=user_id)
+    else:
+        result = store.log_incoming_reply(loop_id=loop_id, message_id=msg_id, summary=f"[{sender}] {text}", user_id=user_id)
+
+    return jsonify({"status": "success", "evidence_id": msg_id, "loop": result}), 200
+
+
+# ---------------------------------------------------------------------------
+# WEBHOOKS: SMS (Twilio) & WhatsApp (Meta Business API)
+# ---------------------------------------------------------------------------
+
+@app.post("/webhooks/sms")
+def webhook_sms():
+    form_data = request.form if request.form else (request.json if request.is_json else {})
+    sender    = form_data.get("From", "unknown_sms")
+    body      = form_data.get("Body", "")
+
+    store = _get_store()
+    loops = store.list_loops(include_closed=False)
+    matched = None
+    for l in loops:
+        if l.get("client_phone") in sender or sender in l.get("client_phone", ""):
+            matched = l
+            break
+
+    if matched:
+        msg_id = f"sms_{int(datetime.now(timezone.utc).timestamp())}"
+        store.log_incoming_reply(loop_id=matched["loop_id"], message_id=msg_id, summary=f"[SMS from {sender}] {body}")
+
+    resp_xml = '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Received. Thank you.</Message></Response>'
+    return resp_xml, 200, {"Content-Type": "text/xml"}
+
+
+@app.route("/webhooks/whatsapp", methods=["GET", "POST"])
+def webhook_whatsapp():
+    if request.method == "GET":
+        verify_token = request.args.get("hub.verify_token")
+        challenge    = request.args.get("hub.challenge")
+        expected     = os.getenv("WHATSAPP_VERIFY_TOKEN", "loopkeeper")
+        if verify_token == expected:
+            return challenge, 200
+        return "Invalid verify token", 403
+
+    payload = request.json if request.is_json else {}
+    store   = _get_store()
+    msg_id  = f"wa_{int(datetime.now(timezone.utc).timestamp())}"
+    
+    try:
+        entries = payload.get("entry", [])
+        for entry in entries:
+            for change in entry.get("changes", []):
+                val = change.get("value", {})
+                msgs = val.get("messages", [])
+                for m in msgs:
+                    wa_from = m.get("from")
+                    text_body = m.get("text", {}).get("body", "")
+                    loops = store.list_loops(include_closed=False)
+                    for l in loops:
+                        if l.get("client_phone") in str(wa_from):
+                            store.log_incoming_reply(loop_id=l["loop_id"], message_id=msg_id, summary=f"[WhatsApp] {text_body}")
+    except Exception as e:
+        print(f"[whatsapp webhook] Parse error: {e}")
+
+    return jsonify({"status": "received"}), 200
+
+
+# ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------
 
