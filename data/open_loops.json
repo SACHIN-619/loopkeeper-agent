@@ -5,6 +5,7 @@
     "client_id": "cl_brightpath",
     "client_name": "Bright Path Design Co.",
     "client_email": "accounts@brightpathdesign.example.com",
+    "client_phone": "+15551234567",
     "invoice_number": "INV-1001",
     "amount": 4200.0,
     "disputed_amount": 0.0,
@@ -28,7 +29,7 @@
       },
       {
         "event": "[incoming reply] Paid!",
-        "date": "2026-08-28T16:17:15.892139+00:00"
+        "date": "2026-08-31T15:17:45.844429+00:00"
       }
     ],
     "processed_message_ids": [
@@ -79,6 +80,7 @@
     "client_id": "cl_kestrel",
     "client_name": "Kestrel Home Goods",
     "client_email": "ap@kestrelhome.example.com",
+    "client_phone": "+15559876543",
     "invoice_number": "INV-1003",
     "amount": 950.0,
     "disputed_amount": 0.0,

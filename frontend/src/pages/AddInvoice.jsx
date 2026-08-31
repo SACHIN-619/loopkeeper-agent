@@ -64,6 +64,7 @@ export default function AddInvoice() {
   const [form, setForm] = useState({
     client_name:       "",
     client_email:      "",
+    client_phone:      "",
     invoice_number:    "",
     amount:            "",
     due_date:          "",
@@ -106,6 +107,7 @@ export default function AddInvoice() {
       client_id:      `cl_${form.client_email.split("@")[0].replace(/\W/g, "_")}`,
       client_name:    form.client_name.trim(),
       client_email:   form.client_email.trim().toLowerCase(),
+      client_phone:   form.client_phone.trim() || null,
       invoice_number: form.invoice_number.trim().toUpperCase(),
       amount:         Number(form.amount),
       disputed_amount: 0,
@@ -209,7 +211,7 @@ export default function AddInvoice() {
             CLIENT INFORMATION
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 16px" }}>
             <Field hint="Full business name or person's name">
               <Label>Client name *</Label>
               <input
@@ -221,7 +223,7 @@ export default function AddInvoice() {
               {errors.client_name && <div style={{ fontFamily: f.body, fontSize: 11, color: "var(--c-tier3)", marginTop: 3 }}>{errors.client_name}</div>}
             </Field>
 
-            <Field hint="Replies will be matched to this email">
+            <Field hint="Matched for email replies">
               <Label>Client email *</Label>
               <input
                 style={inputStyle(!!errors.client_email)}
@@ -231,6 +233,17 @@ export default function AddInvoice() {
                 onChange={e => set("client_email", e.target.value)}
               />
               {errors.client_email && <div style={{ fontFamily: f.body, fontSize: 11, color: "var(--c-tier3)", marginTop: 3 }}>{errors.client_email}</div>}
+            </Field>
+
+            <Field hint="Matched for SMS & WhatsApp webhooks">
+              <Label>Client phone</Label>
+              <input
+                style={inputStyle()}
+                type="tel"
+                placeholder="e.g. +15551234567"
+                value={form.client_phone}
+                onChange={e => set("client_phone", e.target.value)}
+              />
             </Field>
           </div>
 

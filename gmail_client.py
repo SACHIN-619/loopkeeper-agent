@@ -86,20 +86,27 @@ def get_service(user_id: Optional[str] = None):
     return build("gmail", "v1", credentials=creds)
 
 
+def _get_flow(redirect_uri: Optional[str] = None) -> Flow:
+    default_redirect = redirect_uri or os.getenv("GMAIL_REDIRECT_URI") or "http://localhost:8080/gmail/oauth2callback"
+    env_json = os.getenv("GMAIL_CREDENTIALS_JSON") or os.getenv("GOOGLE_OAUTH_CLIENT_JSON")
+    if env_json:
+        try:
+            info = json.loads(env_json)
+            return Flow.from_client_secrets_config(info, scopes=SCOPES, redirect_uri=default_redirect)
+        except Exception as e:
+            print(f"[gmail_client] Error loading GMAIL_CREDENTIALS_JSON env var: {e}")
+    if _CREDS_PATH.exists():
+        return Flow.from_client_secrets_file(str(_CREDS_PATH), scopes=SCOPES, redirect_uri=default_redirect)
+
+    raise FileNotFoundError(
+        "Missing Google OAuth 2.0 client credentials. "
+        "Set GMAIL_CREDENTIALS_JSON environment variable or place credentials.json in the project root."
+    )
+
+
 def get_auth_url(user_id: Optional[str] = None, redirect_uri: Optional[str] = None) -> str:
     """Generate Google OAuth authorization URL for the user consent screen."""
-    if not _CREDS_PATH.exists():
-        raise FileNotFoundError(
-            f"Missing {_CREDS_PATH.name} in loop_keeper root directory. "
-            f"Download OAuth 2.0 Client Credentials (Desktop or Web) from Google Cloud Console."
-        )
-
-    default_redirect = redirect_uri or "http://localhost:8080/gmail/oauth2callback"
-    flow = Flow.from_client_secrets_file(
-        str(_CREDS_PATH),
-        scopes=SCOPES,
-        redirect_uri=default_redirect
-    )
+    flow = _get_flow(redirect_uri=redirect_uri)
     auth_url, _ = flow.authorization_url(
         access_type="offline",
         prompt="consent",
@@ -113,15 +120,8 @@ def exchange_code_for_tokens(user_id: str, code: str, redirect_uri: Optional[str
     """Exchange authorization code for OAuth credentials and save to user's Firestore doc."""
     if not user_id:
         raise ValueError("user_id is required for OAuth token exchange.")
-    if not _CREDS_PATH.exists():
-        raise FileNotFoundError(f"Missing {_CREDS_PATH.name} for token exchange.")
 
-    default_redirect = redirect_uri or "http://localhost:8080/gmail/oauth2callback"
-    flow = Flow.from_client_secrets_file(
-        str(_CREDS_PATH),
-        scopes=SCOPES,
-        redirect_uri=default_redirect
-    )
+    flow = _get_flow(redirect_uri=redirect_uri)
     flow.fetch_token(code=code)
     creds = flow.credentials
 
