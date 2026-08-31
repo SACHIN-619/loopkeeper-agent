@@ -350,7 +350,8 @@ def gmail_auth_url():
     user_id = getattr(request, "user_id", None) or request.args.get("user_id") or request.args.get("userId")
     gclient = _get_gmail_client()
     try:
-        url = gclient.get_auth_url(user_id=user_id)
+        redirect_uri = f"{request.host_url.rstrip('/')}/gmail/oauth2callback" if not os.getenv("GMAIL_REDIRECT_URI") else None
+        url = gclient.get_auth_url(user_id=user_id, redirect_uri=redirect_uri)
         return jsonify({"auth_url": url, "user_id": user_id}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -360,14 +361,15 @@ def gmail_auth_url():
 def gmail_oauth2callback():
     code    = request.args.get("code")
     user_id = request.args.get("state") or request.args.get("user_id")
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
     if not code:
         return redirect(f"{frontend_url}/app/settings?gmail=error&reason=no_code")
 
     gclient = _get_gmail_client()
     try:
-        res = gclient.exchange_code_for_tokens(user_id=user_id or "default_user", code=code)
+        redirect_uri = f"{request.host_url.rstrip('/')}/gmail/oauth2callback" if not os.getenv("GMAIL_REDIRECT_URI") else None
+        res = gclient.exchange_code_for_tokens(user_id=user_id or "default_user", code=code, redirect_uri=redirect_uri)
         email = res.get("email", "")
         return redirect(f"{frontend_url}/app/settings?gmail=success&email={email}")
     except Exception as e:
