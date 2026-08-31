@@ -92,7 +92,7 @@ def _get_flow(redirect_uri: Optional[str] = None) -> Flow:
     if env_json:
         try:
             info = json.loads(env_json)
-            return Flow.from_client_secrets_config(info, scopes=SCOPES, redirect_uri=default_redirect)
+            return Flow.from_client_config(info, scopes=SCOPES, redirect_uri=default_redirect)
         except Exception as e:
             print(f"[gmail_client] Error loading GMAIL_CREDENTIALS_JSON env var: {e}")
     if _CREDS_PATH.exists():
