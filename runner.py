@@ -31,6 +31,13 @@ os.environ.setdefault("LOOPKEEPER_ALLOW_UNAUTHENTICATED", "1")
 
 app = Flask(__name__)
 
+# Initialize flask-cors if available
+try:
+    from flask_cors import CORS
+    CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+except Exception:
+    pass
+
 # Firebase Admin SDK initialization for ID Token verification
 _firebase_auth_active = False
 try:
@@ -47,14 +54,55 @@ except Exception as e:
 @app.after_request
 def add_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Scheduler-Key"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Scheduler-Key, X-Requested-With"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     return response
+
+@app.errorhandler(Exception)
+def handle_global_exception(e):
+    code = getattr(e, "code", 500)
+    msg = str(getattr(e, "description", e))
+    resp = jsonify({"error": msg, "code": code})
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Scheduler-Key, X-Requested-With"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return resp, code
 
 @app.route("/", defaults={"path": ""}, methods=["OPTIONS"])
 @app.route("/<path:path>", methods=["OPTIONS"])
 def options_handler(path):
-    return "", 200
+    resp = jsonify({})
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Scheduler-Key, X-Requested-With"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return resp, 200
+
+
+def optional_auth(f):
+    """Extract user_id if token or query param provided, but never block or fail status/health calls."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        scheduler_key = request.headers.get("X-Scheduler-Key")
+        expected_key  = os.getenv("SCHEDULER_SECRET", "loopkeeper_secret_key")
+        if scheduler_key and scheduler_key == expected_key:
+            request.user_id = None
+            return f(*args, **kwargs)
+
+        req_data = request.json if request.is_json else {}
+        user_id = req_data.get("user_id") or request.args.get("user_id") or request.args.get("userId")
+
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer ") and _firebase_auth_active:
+            id_token = auth_header.split("Bearer ")[1].strip()
+            try:
+                decoded = fb_auth.verify_id_token(id_token)
+                user_id = decoded.get("uid")
+            except Exception:
+                pass
+
+        request.user_id = user_id
+        return f(*args, **kwargs)
+    return decorated
 
 
 def require_auth(f):
@@ -82,11 +130,15 @@ def require_auth(f):
                 request.user_id = decoded.get("uid")
                 return f(*args, **kwargs)
             except Exception as e:
-                return jsonify({"error": f"Invalid or expired auth token: {e}"}), 401
+                resp = jsonify({"error": f"Invalid or expired auth token: {e}"})
+                resp.headers["Access-Control-Allow-Origin"] = "*"
+                return resp, 401
 
-        return jsonify({
+        resp = jsonify({
             "error": "Authentication required. Include 'Authorization: Bearer <id_token>' header or set LOOPKEEPER_ALLOW_UNAUTHENTICATED=1."
-        }), 401
+        })
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp, 401
     return decorated
 
 
@@ -196,7 +248,7 @@ def verify_close():
 # ---------------------------------------------------------------------------
 
 @app.get("/agent/status")
-@require_auth
+@optional_auth
 def agent_status():
     user_id = getattr(request, "user_id", None) or request.args.get("user_id") or request.args.get("userId")
     store = _get_store()
@@ -234,7 +286,7 @@ def agent_status():
 # ---------------------------------------------------------------------------
 
 @app.get("/agent/runs")
-@require_auth
+@optional_auth
 def agent_runs():
     user_id = getattr(request, "user_id", None) or request.args.get("user_id") or request.args.get("userId")
     limit   = request.args.get("limit", default=20, type=int)
