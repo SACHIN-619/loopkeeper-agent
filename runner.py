@@ -244,6 +244,103 @@ def agent_runs():
 
 
 # ---------------------------------------------------------------------------
+# REST ENDPOINTS: /loops, /clients, /approvals
+# ---------------------------------------------------------------------------
+
+@app.get("/loops")
+@require_auth
+def get_loops():
+    user_id = getattr(request, "user_id", None) or request.args.get("user_id")
+    include_closed = request.args.get("include_closed", "").lower() in ("true", "1")
+    store = _get_store()
+    loops = store.list_loops(include_closed=include_closed, sort_by_priority=True, user_id=user_id)
+    return jsonify(loops), 200
+
+
+@app.get("/loops/<loop_id>")
+@require_auth
+def get_loop_by_id(loop_id):
+    user_id = getattr(request, "user_id", None) or request.args.get("user_id")
+    store = _get_store()
+    loop = store.get_loop(loop_id=loop_id, user_id=user_id)
+    if not loop:
+        return jsonify({"error": f"Loop '{loop_id}' not found."}), 404
+    return jsonify(loop), 200
+
+
+@app.get("/clients")
+@require_auth
+def get_clients():
+    user_id = getattr(request, "user_id", None) or request.args.get("user_id")
+    store = _get_store()
+    clients = store.list_clients(user_id=user_id)
+    return jsonify(clients), 200
+
+
+@app.get("/approvals")
+@require_auth
+def get_pending_approvals():
+    user_id = getattr(request, "user_id", None) or request.args.get("user_id")
+    store = _get_store()
+    approvals = store.list_pending_approvals(user_id=user_id)
+    return jsonify(approvals), 200
+
+
+@app.post("/approvals/<loop_id>/approve")
+@require_auth
+def approve_draft(loop_id):
+    user_id = getattr(request, "user_id", None)
+    store = _get_store()
+    updated = store.send_draft(loop_id=loop_id, user_id=user_id)
+    if not updated:
+        return jsonify({"error": f"Loop '{loop_id}' has no pending draft or access denied."}), 400
+    return jsonify({"status": "approved", "loop": updated}), 200
+
+
+@app.post("/approvals/<loop_id>/reject")
+@require_auth
+def reject_draft(loop_id):
+    user_id = getattr(request, "user_id", None)
+    store = _get_store()
+    updated = store.update_status(loop_id=loop_id, status="open", reason="Draft rejected by owner", user_id=user_id)
+    if not updated:
+        return jsonify({"error": f"Loop '{loop_id}' not found or access denied."}), 400
+    return jsonify({"status": "rejected", "loop": updated}), 200
+
+
+@app.post("/loops/<loop_id>/escalate")
+@require_auth
+def escalate_loop(loop_id):
+    req_data = request.json if request.is_json else {}
+    reason = req_data.get("reason", "Escalated by user")
+    user_id = getattr(request, "user_id", None)
+    store = _get_store()
+    updated = store.escalate(loop_id=loop_id, reason=reason, user_id=user_id)
+    if not updated:
+        return jsonify({"error": f"Loop '{loop_id}' not found or access denied."}), 400
+    return jsonify({"status": "escalated", "loop": updated}), 200
+
+
+@app.post("/loops/<loop_id>/split")
+@require_auth
+def split_loop_endpoint(loop_id):
+    req_data = request.json if request.is_json else {}
+    split_amount = float(req_data.get("split_amount", 0))
+    reason = req_data.get("reason", "Partial dispute split")
+    user_id = getattr(request, "user_id", None)
+
+    if split_amount <= 0:
+        return jsonify({"error": "split_amount must be > 0"}), 400
+
+    store = _get_store()
+    res = store.split_loop(loop_id=loop_id, split_amount=split_amount, reason=reason, user_id=user_id)
+    if not res or "error" in res:
+        return jsonify({"error": res.get("error", "Split failed") if isinstance(res, dict) else "Split failed"}), 400
+    return jsonify(res), 200
+
+
+
+# ---------------------------------------------------------------------------
 # GMAIL OAUTH ENDPOINTS
 # ---------------------------------------------------------------------------
 
