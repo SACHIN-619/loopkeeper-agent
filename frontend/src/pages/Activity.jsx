@@ -226,7 +226,7 @@ function RunCard({ run, index }) {
 
 export default function Activity() {
   const { loops, resolvedLoops, loadSampleDataset } = useApp();
-  const { isDemoMode } = useAuth();
+  const { user, isDemoMode } = useAuth();
   const [tab, setTab] = useState("timeline"); // "timeline" | "runs"
   const [runLog, setRunLog] = useState(isDemoMode ? AGENT_RUNS : []);
   const [sandbox, setSandbox] = useState(true);
@@ -234,7 +234,8 @@ export default function Activity() {
   // Try to load runs from live backend
   useEffect(() => {
     const backendUrl = import.meta.env.VITE_CLOUD_RUN_URL || "http://localhost:8080";
-    fetch(`${backendUrl}/agent/runs?limit=20`)
+    const userParam = user?.uid ? `&user_id=${user.uid}` : "";
+    fetch(`${backendUrl}/agent/runs?limit=20${userParam}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data && Array.isArray(data) && data.length > 0) {
@@ -247,7 +248,7 @@ export default function Activity() {
       .catch(() => {
         if (isDemoMode) setRunLog(AGENT_RUNS);
       });
-  }, [isDemoMode]);
+  }, [isDemoMode, user]);
 
   // Aggregate all history events from all loops
   const events = useMemo(() => {

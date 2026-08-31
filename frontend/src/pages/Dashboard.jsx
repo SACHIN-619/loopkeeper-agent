@@ -332,11 +332,12 @@ export default function Dashboard() {
   // Fetch live agent status from backend
   useEffect(() => {
     const backendUrl = import.meta.env.VITE_CLOUD_RUN_URL || "http://localhost:8080";
-    fetch(`${backendUrl}/agent/status`)
+    const userParam = user?.uid ? `?user_id=${user.uid}` : "";
+    fetch(`${backendUrl}/agent/status${userParam}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setAgentStatus(data); })
       .catch(() => { setAgentStatus({ offline: true }); });
-  }, []);
+  }, [user]);
 
   const metrics = useMemo(() => buildMetrics(loops, resolvedLoops), [loops, resolvedLoops]);
 
