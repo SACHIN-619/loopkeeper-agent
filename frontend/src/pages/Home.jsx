@@ -451,7 +451,7 @@ export default function Home() {
                 POWERED BY
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {["Google ADK", "Gemini 2.5 Flash", "React 18", "Flask Gateway", "Firebase Auth", "Firestore", "Render"].map(tech => (
+                {["Google ADK", "Gemini 2.5 Flash", "React 18", "Flask Gateway", "Firebase Auth", "Firestore", "Google Cloud Run"].map(tech => (
                   <span key={tech} style={{
                     fontFamily: f.mono, fontSize: 10, fontWeight: 600,
                     background: "var(--c-surface-2)", border: "1px solid var(--c-border-bright)",
