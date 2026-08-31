@@ -153,6 +153,13 @@ export default function AppShell() {
     setIsFallback(true);
   };
 
+  const clearSampleDataset = () => {
+    sessionStorage.removeItem("lk_load_sample_data");
+    sessionStorage.removeItem("lk_demo_mode");
+    setIsFallback(false);
+    window.location.reload();
+  };
+
   const activeClients = isDemoMode ? CLIENTS : {};
 
   return (
@@ -161,7 +168,7 @@ export default function AppShell() {
       isFallback, loading, firestoreError, localApprovals,
       onVerifyAndClose: handleVerifyAndClose,
       onActionCompleted: handleActionCompleted,
-      loadSampleDataset,
+      loadSampleDataset, clearSampleDataset,
     }}>
       <div style={{ display: "flex", minHeight: "100vh", background: "var(--c-bg)" }}>
 
