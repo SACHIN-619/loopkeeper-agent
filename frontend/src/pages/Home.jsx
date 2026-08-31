@@ -382,15 +382,102 @@ export default function Home() {
         </RevealSection>
       </section>
 
-      {/* Footer */}
+      {/* Enhanced Modern Footer */}
       <footer style={{
-        borderTop: "1px solid var(--c-border)", padding: "28px 40px",
-        display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16,
+        borderTop: "1px solid var(--c-border-bright)",
+        background: "linear-gradient(180deg, var(--c-bg) 0%, rgba(10,13,18,0.98) 100%)",
+        padding: "60px 40px 32px",
+        marginTop: 40,
+        position: "relative",
       }}>
-        <Logo size={22} />
-        <span style={{ fontFamily: f.mono, fontSize: 11, color: "var(--c-text-3)" }}>
-          LoopKeeper · All Things Agentic Hackathon 2026
-        </span>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 40,
+            marginBottom: 48,
+          }}>
+            {/* Column 1: Brand & Tagline */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <Logo size={26} />
+              <p style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)", lineHeight: 1.6, margin: 0 }}>
+                Autonomous financial follow-up agent. Owns every unpaid invoice from detection through verified resolution.
+              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: "50%",
+                  background: "var(--c-resolved)",
+                  boxShadow: "0 0 10px var(--c-resolved)",
+                  display: "inline-block"
+                }} />
+                <span style={{ fontFamily: f.mono, fontSize: 11, color: "var(--c-text-2)", fontWeight: 600 }}>
+                  Agent Service Active & Operational
+                </span>
+              </div>
+            </div>
+
+            {/* Column 2: Product & App Navigation */}
+            <div>
+              <div style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: "0.1em", color: "var(--c-teal)", fontWeight: 700, marginBottom: 16 }}>
+                PRODUCT & NAVIGATION
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <Link to="/app" style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)", textDecoration: "none", transition: "color 0.15s" }}>Command Center</Link>
+                <Link to="/app/loops" style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)", textDecoration: "none", transition: "color 0.15s" }}>Open Loops Registry</Link>
+                <Link to="/app/approvals" style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)", textDecoration: "none", transition: "color 0.15s" }}>Approvals Queue (Tier 2)</Link>
+                <Link to="/app/activity" style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)", textDecoration: "none", transition: "color 0.15s" }}>Activity & Run Logs</Link>
+                <Link to="/app/clients" style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)", textDecoration: "none", transition: "color 0.15s" }}>Client Relationship Memory</Link>
+                <Link to="/app/add-invoice" style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)", textDecoration: "none", transition: "color 0.15s" }}>Track New Invoice</Link>
+              </div>
+            </div>
+
+            {/* Column 3: Safety & Architecture */}
+            <div>
+              <div style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: "0.1em", color: "var(--c-teal)", fontWeight: 700, marginBottom: 16 }}>
+                SAFETY & ARCHITECTURE
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <span style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)" }}>Deterministic Authority Tiers (1, 2, 3)</span>
+                <span style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)" }}>Evidence-Gated Resolution</span>
+                <span style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)" }}>Gemini Vision Invoice Ingestion</span>
+                <span style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)" }}>Multi-channel Webhooks (Gmail, SMS, WA)</span>
+                <span style={{ fontFamily: f.body, fontSize: 13, color: "var(--c-text-2)" }}>Multi-tenant Firestore / JSON Engine</span>
+              </div>
+            </div>
+
+            {/* Column 4: Technology Stack */}
+            <div>
+              <div style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: "0.1em", color: "var(--c-teal)", fontWeight: 700, marginBottom: 16 }}>
+                POWERED BY
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {["Google ADK", "Gemini 2.5 Flash", "React 18", "Flask Gateway", "Firebase Auth", "Firestore", "Render"].map(tech => (
+                  <span key={tech} style={{
+                    fontFamily: f.mono, fontSize: 10, fontWeight: 600,
+                    background: "var(--c-surface-2)", border: "1px solid var(--c-border-bright)",
+                    borderRadius: 4, padding: "4px 8px", color: "var(--c-text-2)",
+                  }}>
+                    {tech}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Copyright Bar */}
+          <div style={{
+            borderTop: "1px solid var(--c-border)", paddingTop: 24,
+            display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16,
+          }}>
+            <span style={{ fontFamily: f.mono, fontSize: 11, color: "var(--c-text-3)" }}>
+              © 2026 LoopKeeper Agent · All Things Agentic Hackathon
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <Link to="/login" style={{ fontFamily: f.mono, fontSize: 11, color: "var(--c-text-3)", textDecoration: "none" }}>Sign In</Link>
+              <Link to="/app/settings" style={{ fontFamily: f.mono, fontSize: 11, color: "var(--c-text-3)", textDecoration: "none" }}>Settings</Link>
+            </div>
+          </div>
+        </div>
       </footer>
     </div>
   );
