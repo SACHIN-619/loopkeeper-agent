@@ -460,7 +460,7 @@ def extract_invoice():
         except Exception:
             import google.generativeai as genai
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-2.5-flash")
             res = model.generate_content([{"mime_type": mime_type, "data": file_bytes}, prompt])
             text = res.text
 
